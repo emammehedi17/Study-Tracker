@@ -8,6 +8,7 @@ import {
   getUserStats,
   getWeeklyProgress 
 } from "./lib/storage";
+import { calculatePlanPercentage } from "./lib/bcsSyllabus";
 import { DailyTablePlan } from "./types";
 import { Navbar } from "./components/Navbar";
 import { TableStudyTracker } from "./components/TableStudyTracker";
@@ -59,8 +60,13 @@ export default function App() {
 
   // Plan Update Handler
   const handleUpdatePlan = async (updatedPlan: DailyTablePlan) => {
-    setCurrentPlan(updatedPlan);
-    await saveDailyPlan(updatedPlan);
+    const calculatedPct = calculatePlanPercentage(updatedPlan.topics);
+    const finalPlan: DailyTablePlan = {
+      ...updatedPlan,
+      completionPercentage: calculatedPct,
+    };
+    setCurrentPlan(finalPlan);
+    await saveDailyPlan(finalPlan);
     const stats = getUserStats();
     setStreakDays(stats.streakDays || 1);
     setWeeklyStats(getWeeklyProgress(currentDate));

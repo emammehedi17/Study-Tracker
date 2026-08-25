@@ -26,6 +26,23 @@ export function formatBanglaDate(dateStr: string): string {
   return `${day} ${month}, ${year} (${dayName})`;
 }
 
+// Compute total completed percentage for a plan
+export function calculatePlanPercentage(topics: TableTopicItem[]): number {
+  if (!topics || topics.length === 0) return 0;
+  
+  let totalAchieved = 0;
+  const weightedTopics = computeCellWeights(topics);
+
+  weightedTopics.forEach((t) => {
+    if (t.textbook) totalAchieved += (t.textbookWeight || 0);
+    if (t.livemcq) totalAchieved += (t.livemcqWeight || 0);
+    if (t.qbank) totalAchieved += (t.qbankWeight || 0);
+    if (t.others) totalAchieved += (t.othersWeight || 0);
+  });
+
+  return Math.min(100, Math.round(totalAchieved));
+}
+
 // Automatically distribute 100% of the day's total among all cells
 export function computeCellWeights(topics: TableTopicItem[]): TableTopicItem[] {
   if (!topics || topics.length === 0) return [];

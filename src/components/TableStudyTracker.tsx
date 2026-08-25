@@ -14,7 +14,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { DailyTablePlan, TableTopicItem } from "../types";
-import { toBengaliNumber, computeCellWeights, formatBanglaDate } from "../lib/bcsSyllabus";
+import { toBengaliNumber, computeCellWeights, formatBanglaDate, calculatePlanPercentage } from "../lib/bcsSyllabus";
 import confetti from "canvas-confetti";
 
 interface TableStudyTrackerProps {
@@ -40,6 +40,9 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
   const [newTopicText, setNewTopicText] = useState("");
   const [newTopicDetails, setNewTopicDetails] = useState("");
   const [isAddingRow, setIsAddingRow] = useState(false);
+
+  // Derive real-time daily percentage
+  const currentDailyPercentage = calculatePlanPercentage(plan.topics);
 
   // Toggle a specific cell in a topic
   const handleToggleCell = (
@@ -71,9 +74,12 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
       });
     }
 
+    const calculatedPct = calculatePlanPercentage(updatedTopics);
+
     onUpdatePlan({
       ...plan,
       topics: updatedTopics,
+      completionPercentage: calculatedPct,
     });
   };
 
@@ -93,9 +99,12 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
     };
 
     const updatedTopics = computeCellWeights([...plan.topics, newTopic]);
+    const calculatedPct = calculatePlanPercentage(updatedTopics);
+
     onUpdatePlan({
       ...plan,
       topics: updatedTopics,
+      completionPercentage: calculatedPct,
     });
 
     setNewTopicText("");
@@ -107,9 +116,12 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
   const handleDeleteTopic = (topicId: string) => {
     const remaining = plan.topics.filter((t) => t.id !== topicId);
     const reweighted = computeCellWeights(remaining);
+    const calculatedPct = calculatePlanPercentage(reweighted);
+
     onUpdatePlan({
       ...plan,
       topics: reweighted,
+      completionPercentage: calculatedPct,
     });
   };
 
@@ -126,6 +138,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
     onUpdatePlan({
       ...plan,
       topics: cleared,
+      completionPercentage: 0,
     });
   };
 
@@ -155,7 +168,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                   আজকের পড়া ({formatBanglaDate(currentDate)})
                 </span>
                 <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">
-                  দৈনিক প্রগ্রেস: <span className="text-emerald-600 dark:text-emerald-400">{toBengaliNumber(plan.completionPercentage)}%</span>
+                  দৈনিক প্রগ্রেস: <span className="text-emerald-600 dark:text-emerald-400">{toBengaliNumber(currentDailyPercentage)}%</span>
                 </h3>
               </div>
             </div>
@@ -169,8 +182,8 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
           {/* Daily Progress Bar */}
           <div className="w-full bg-stone-100 dark:bg-stone-800 h-3 rounded-full overflow-hidden p-0.5 border border-stone-200/60 dark:border-stone-700/60">
             <div 
-              className="bg-emerald-600 dark:bg-emerald-500 h-full rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${plan.completionPercentage}%` }}
+              className="bg-emerald-600 dark:bg-emerald-500 h-full rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${currentDailyPercentage}%` }}
             />
           </div>
         </div>

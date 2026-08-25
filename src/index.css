@@ -17,3 +17,18 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Hide Netlify injected badge, drawer, and feedback widget */
+#netlify-badge,
+.netlify-badge,
+[data-netlify-badge],
+iframe[src*="netlify"],
+div[class*="netlify-feedback"],
+div[id*="netlify-drawer"],
+div[class*="NetlifyFeedback"],
+div[data-netlify-drawer] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
