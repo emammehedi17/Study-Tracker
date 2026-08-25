@@ -61,8 +61,8 @@ export default function App() {
   const loadPlanForDate = async (date: string) => {
     const plan = await getDailyPlan(date);
     setCurrentPlan(plan);
-    const stats = getUserStats();
-    setStreakDays(stats.streakDays || 1);
+    const stats = getUserStats(date);
+    setStreakDays(stats.streakDays ?? 0);
   };
 
   // Plan Update Handler
@@ -74,8 +74,8 @@ export default function App() {
     };
     setCurrentPlan(finalPlan);
     await saveDailyPlan(finalPlan);
-    const stats = getUserStats();
-    setStreakDays(stats.streakDays || 1);
+    const stats = getUserStats(currentDate);
+    setStreakDays(stats.streakDays ?? 0);
     setWeeklyStats(getWeeklyProgress(currentDate));
   };
 

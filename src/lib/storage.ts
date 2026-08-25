@@ -115,7 +115,7 @@ export async function saveDailyPlan(plan: DailyTablePlan): Promise<void> {
   setLocal(LOCAL_TABLE_PLANS_KEY, allPlans);
 
   // 2. Update Streak in stats
-  updateUserStreak(plan.date, completionPercentage);
+  updateUserStreak(plan.date);
 
   // 3. Firestore save if signed in
   if (user) {
@@ -171,26 +171,70 @@ export function getWeeklyProgress(currentDateStr: string): {
   };
 }
 
-// User Stats & Streak
-function updateUserStreak(date: string, completionPct: number): void {
-  const stats = getLocal<UserStats>(LOCAL_STATS_KEY, {
-    streakDays: 1,
-    lastStudiedDate: date,
-  });
+// Check if a day's required study checkboxes (Textbook, LiveMCQ, Q-Bank) are checked (Others is excluded)
+export function isDayAllChecked(plan?: DailyTablePlan | null): boolean {
+  if (!plan || !plan.topics || plan.topics.length === 0) return false;
 
-  if (completionPct > 0) {
-    if (stats.lastStudiedDate !== date) {
-      stats.streakDays = (stats.streakDays || 0) + 1;
-      stats.lastStudiedDate = date;
+  return plan.topics.every((t) => {
+    const tbOk = !!t.textbook;
+    const liveOk = !!t.livemcq;
+    const qbOk = !!t.qbank;
+    // Others is purely optional/custom and does NOT count towards the strike requirement
+    return tbOk && liveOk && qbOk;
+  });
+}
+
+// Dynamically calculate current consecutive streak
+export function calculateCurrentStreak(referenceDateStr: string): number {
+  const allPlans = getLocal<Record<string, DailyTablePlan>>(LOCAL_TABLE_PLANS_KEY, {});
+  const refPlan = allPlans[referenceDateStr];
+
+  // If the active day's checkboxes are not ALL checked, streak is 0
+  if (!isDayAllChecked(refPlan)) {
+    return 0;
+  }
+
+  let streak = 1;
+  const parts = referenceDateStr.split("-").map(Number);
+  if (parts.length !== 3) return 1;
+
+  const cursor = new Date(parts[0], parts[1] - 1, parts[2]);
+
+  // Check previous consecutive days
+  while (true) {
+    cursor.setDate(cursor.getDate() - 1);
+    const y = cursor.getFullYear();
+    const m = String(cursor.getMonth() + 1).padStart(2, "0");
+    const d = String(cursor.getDate()).padStart(2, "0");
+    const dateKey = `${y}-${m}-${d}`;
+
+    const prevPlan = allPlans[dateKey];
+    if (isDayAllChecked(prevPlan)) {
+      streak++;
+    } else {
+      break;
     }
   }
 
-  setLocal(LOCAL_STATS_KEY, stats);
+  return streak;
 }
 
-export function getUserStats(): UserStats {
-  return getLocal<UserStats>(LOCAL_STATS_KEY, {
-    streakDays: 1,
-    lastStudiedDate: new Date().toISOString().split("T")[0],
-  });
+// User Stats & Streak
+function updateUserStreak(date: string): number {
+  const streak = calculateCurrentStreak(date);
+  const stats: UserStats = {
+    streakDays: streak,
+    lastStudiedDate: date,
+  };
+  setLocal(LOCAL_STATS_KEY, stats);
+  return streak;
+}
+
+export function getUserStats(referenceDate?: string): UserStats {
+  const todayStr = referenceDate || new Date().toISOString().split("T")[0];
+  const streak = calculateCurrentStreak(todayStr);
+  return {
+    streakDays: streak,
+    lastStudiedDate: todayStr,
+  };
 }

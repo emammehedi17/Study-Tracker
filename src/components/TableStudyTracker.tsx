@@ -178,6 +178,32 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
     });
   };
 
+  // Check all cells
+  const handleCheckAll = () => {
+    const allChecked = plan.topics.map((t) => ({
+      ...t,
+      textbook: true,
+      livemcq: true,
+      qbank: true,
+      others: t.othersWeight && t.othersWeight > 0 ? true : t.others,
+    }));
+
+    confetti({
+      particleCount: 50,
+      spread: 70,
+      origin: { y: 0.7 },
+      colors: ['#10b981', '#3b82f6', '#f59e0b']
+    });
+
+    const calculatedPct = calculatePlanPercentage(allChecked);
+
+    onUpdatePlan({
+      ...plan,
+      topics: allChecked,
+      completionPercentage: calculatedPct,
+    });
+  };
+
   // Uncheck all cells
   const handleUncheckAll = () => {
     if (!window.confirm("আজকের সব টিক মার্ক রিসেট করতে চান?")) return;
@@ -327,23 +353,25 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
             <span>কোড এডিটর</span>
           </button>
 
-          {/* Reset To Default */}
-          <button
-            id="btn-reset-syllabus"
-            onClick={onResetToDay1}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium border border-stone-200 dark:border-stone-700 transition cursor-pointer"
-            title="মূল ডে-১ সিলেবাসে রিসেট করুন"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">ডিফল্ট সিলেবাস</span>
-          </button>
+          {/* Check All */}
+          {plan.topics.length > 0 && (
+            <button
+              id="btn-check-all-topics"
+              onClick={handleCheckAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-xs font-semibold border border-emerald-300 dark:border-emerald-700/60 shadow-xs transition cursor-pointer"
+              title="আজকের সব ঘরে টিক দিন"
+            >
+              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>সব টিক দিন</span>
+            </button>
+          )}
 
           {/* Uncheck All */}
           {checkedCells > 0 && (
             <button
               id="btn-uncheck-all-topics"
               onClick={handleUncheckAll}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-medium transition cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-medium border border-red-200 dark:border-red-900/50 transition cursor-pointer"
               title="সব টিক আনচেক করুন"
             >
               <span>আনচেক</span>

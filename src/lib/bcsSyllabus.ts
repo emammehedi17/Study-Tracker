@@ -223,75 +223,93 @@ export function exportTopicsToCodeFormat(topics: TableTopicItem[]): string {
     .join("\n");
 }
 
-// Default Day-1 BCS Bangla Grammar & Literature Topics
-export const DEFAULT_DAY_1_TOPICS: TableTopicItem[] = computeCellWeights([
+// Default 10 BCS Preliminary Subjects (২০০ নম্বর প্রিলিমিনারি সিলেবাস)
+export const DEFAULT_BCS_10_SUBJECTS: TableTopicItem[] = computeCellWeights([
   {
-    id: "topic-1",
-    topic: "শব্দগঠন, শব্দদ্বিত্ব ও সংখ্যাবাচক শব্দ",
-    details: "বোর্ড ব্যাকরণ বই • LiveMCQ লেকচার ১ শিট",
+    id: "bcs-sub-1",
+    topic: "১. বাংলা ভাষা ও সাহিত্য (৩৫ নম্বর)",
+    details: "ব্যাকরণ (১৫) ও সাহিত্য (প্রাচীন, মধ্য ও আধুনিক যুগ - ২০)",
     textbook: false,
     livemcq: false,
     qbank: false,
     others: false,
   },
   {
-    id: "topic-2",
-    topic: "বিশেষ্য ও সর্বনাম পদ",
-    details: "নবম-দশম বোর্ড ব্যাকরণ • LiveMCQ লেকচার ২ শিট",
+    id: "bcs-sub-2",
+    topic: "২. ইংরেজি ভাষা ও সাহিত্য (৩৫ নম্বর)",
+    details: "English Language & Grammar (20) and English Literature (15)",
     textbook: false,
     livemcq: false,
     qbank: false,
     others: false,
   },
   {
-    id: "topic-3",
-    topic: "বিশেষণ ও অনুসর্গ",
-    details: "বোর্ড ব্যাকরণ ও বাউবি • LiveMCQ লেকচার ৩ শিট",
+    id: "bcs-sub-3",
+    topic: "৩. বাংলাদেশ বিষয়াবলী (৩০ নম্বর)",
+    details: "ইতিহাস, মুক্তিযুদ্ধ, সংবিধান, অর্থনীতি, ভৌগোলিক বিষয় ও সাম্প্রতিক",
     textbook: false,
     livemcq: false,
     qbank: false,
     others: false,
   },
   {
-    id: "topic-4",
-    topic: "ক্রিয়া ও ক্রিয়া বিশেষণ",
-    details: "বোর্ড ব্যাকরণ বই • LiveMCQ লেকচার ৪ শিট",
+    id: "bcs-sub-4",
+    topic: "৪. আন্তর্জাতিক বিষয়াবলী (২০ নম্বর)",
+    details: "বৈশ্বিক ইতিহাস, ভূ-রাজনীতি, আন্তর্জাতিক সংস্থা, নিরাপত্তা ও পরিবেশ",
     textbook: false,
     livemcq: false,
     qbank: false,
     others: false,
   },
   {
-    id: "topic-5",
-    topic: "যোজক ও আবেগ শব্দ",
-    details: "বাংলা ব্যাকরণ বোর্ড বই • LiveMCQ লেকচার ৫ শিট",
+    id: "bcs-sub-5",
+    topic: "৫. ভূগোল, পরিবেশ ও দুর্যোগ ব্যবস্থাপনা (১০ নম্বর)",
+    details: "বাংলাদেশ ও বৈশ্বিক ভূগোল, আবহাওয়া, জলবায়ু ও দুর্যোগ ব্যবস্থাপনা",
     textbook: false,
     livemcq: false,
     qbank: false,
     others: false,
   },
   {
-    id: "topic-6",
-    topic: "পুরুষ ও স্ত্রী-বাচক শব্দ এবং পদাশ্রিত নির্দেশক",
-    details: "বোর্ড ব্যাকরণ বই • LiveMCQ লেকচার ৬ শিট",
+    id: "bcs-sub-6",
+    topic: "৬. সাধারণ বিজ্ঞান (১৫ নম্বর)",
+    details: "ভৌত বিজ্ঞান, জীববিজ্ঞান এবং আধুনিক বিজ্ঞান",
     textbook: false,
     livemcq: false,
     qbank: false,
     others: false,
   },
   {
-    id: "topic-7",
-    topic: "বাংলা বানান ও শুদ্ধীকরণ (পর্ব ১ ও ২)",
-    details: "বাংলা একাডেমি প্রমিত বানান • LiveMCQ লেকচার ৭ ও ৮",
+    id: "bcs-sub-7",
+    topic: "৭. কম্পিউটার ও তথ্যপ্রযুক্তি (১৫ নম্বর)",
+    details: "কম্পিউটার সংগঠন, ইন্টারনেট, নেটওয়ার্কিং, ডাটাবেস ও স্মার্ট ডিভাইস",
     textbook: false,
     livemcq: false,
     qbank: false,
     others: false,
   },
   {
-    id: "topic-8",
-    topic: "বাক্য শুদ্ধি ও প্রয়োগ-অপপ্রয়োগ",
-    details: "বিসিএস প্রশ্নব্যাংক ও LiveMCQ লেকচার ৯",
+    id: "bcs-sub-8",
+    topic: "৮. গাণিতিক যুক্তি (১৫ নম্বর)",
+    details: "পাটিগণিত, বীজগণিত, জ্যামিতি, বিন্যাস-সমাবেশ ও সম্ভাব্যতা",
+    textbook: false,
+    livemcq: false,
+    qbank: false,
+    others: false,
+  },
+  {
+    id: "bcs-sub-9",
+    topic: "৯. মানসিক দক্ষতা (১৫ নম্বর)",
+    details: "ভাষাগত ও সংখ্যাগত যুক্তি, সমস্যা সমাধান ও স্থানিক সম্পর্ক",
+    textbook: false,
+    livemcq: false,
+    qbank: false,
+    others: false,
+  },
+  {
+    id: "bcs-sub-10",
+    topic: "১০. নৈতিকতা, মূল্যবোধ ও সুশাসন (১০ নম্বর)",
+    details: "সুশাসন ও নৈতিকতার স্বরূপ, মূল্যবোধ শিক্ষা ও জাতীয় জীবনে গুরুত্ব",
     textbook: false,
     livemcq: false,
     qbank: false,
@@ -299,10 +317,12 @@ export const DEFAULT_DAY_1_TOPICS: TableTopicItem[] = computeCellWeights([
   },
 ]);
 
+export const DEFAULT_DAY_1_TOPICS = DEFAULT_BCS_10_SUBJECTS;
+
 export function getInitialDay1Plan(date: string): DailyTablePlan {
   return {
     date,
-    topics: DEFAULT_DAY_1_TOPICS,
+    topics: DEFAULT_BCS_10_SUBJECTS,
     completionPercentage: 0,
     notes: "",
   };

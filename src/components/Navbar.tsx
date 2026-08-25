@@ -180,10 +180,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             
             {/* Streak */}
             <div 
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-xs font-bold"
-              title="পড়ার ধারাবাহিকতা"
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                streakDays > 0
+                  ? "bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 shadow-xs"
+                  : "bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400"
+              }`}
+              title={streakDays > 0 ? `পড়ার ধারাবাহিকতা: ${toBengaliNumber(streakDays)} দিন (সব চেকমার্ক সম্পন্ন)` : "সব চেকমার্ক পূরণ করলে স্ট্রিক কাউন্ট হবে"}
             >
-              <Flame className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              <Flame className={`w-3.5 h-3.5 ${streakDays > 0 ? "text-amber-500 fill-amber-500 animate-pulse" : "text-stone-400"}`} />
               <span>{toBengaliNumber(streakDays)} দিন</span>
             </div>
 
