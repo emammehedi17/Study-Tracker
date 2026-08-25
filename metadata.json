@@ -1,0 +1,6 @@
+{
+  "name": "51st BCS Study Tracker",
+  "description": "Comprehensive Bengali study tracker for 51st BCS preparation with AI topic weight analyzer, multi-source tasks (Textbooks, LiveMCQ, Question Bank), weekly analytics, and dark mode.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
