@@ -14,7 +14,14 @@ import { Navbar } from "./components/Navbar";
 import { TableStudyTracker } from "./components/TableStudyTracker";
 
 export default function App() {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const getTodayStr = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+  const todayStr = getTodayStr();
 
   // App States
   const [currentDate, setCurrentDate] = useState<string>(todayStr);
