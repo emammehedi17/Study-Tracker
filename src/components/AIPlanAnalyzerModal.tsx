@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { DailyPlan, StudyTask, StudySource, BCSSubject, AIPlanAnalysisResponse } from "../types";
 import { SOURCE_CONFIG, toBengaliNumber } from "../lib/bcsSyllabus";
+import { analyzePlanOffline } from "../lib/offlineAnalyzer";
 
 interface AIPlanAnalyzerModalProps {
   isOpen: boolean;
@@ -100,22 +101,28 @@ export const AIPlanAnalyzerModal: React.FC<AIPlanAnalyzerModalProps> = ({
         }
       }
 
-      const response = await fetch("/api/analyze-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      try {
+        const response = await fetch("/api/analyze-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
-      const json = await response.json();
-
-      if (!response.ok || !json.success) {
-        throw new Error(json.error || "বিশ্লেষণ ব্যর্থ হয়েছে।");
+        if (response.ok) {
+          const json = await response.json();
+          if (json.success && json.data) {
+            setAnalyzedResult(json.data);
+            return;
+          }
+        }
+        // If API fails or 404 on static deployment, fallback to smart offline parser
+        const offlineResult = analyzePlanOffline(inputText || "৫১তম বিসিএস স্টাডি প্ল্যান", targetDate);
+        setAnalyzedResult(offlineResult);
+      } catch (err: any) {
+        console.warn("Backend API not reachable (static host), using smart local analyzer:", err);
+        const offlineResult = analyzePlanOffline(inputText || "৫১তম বিসিএস স্টাডি প্ল্যান", targetDate);
+        setAnalyzedResult(offlineResult);
       }
-
-      setAnalyzedResult(json.data);
-    } catch (err: any) {
-      console.error("AI Analysis failed:", err);
-      setErrorMsg(err.message || "পড়ার তালিকা বিশ্লেষণ করতে সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।");
     } finally {
       setIsLoading(false);
     }

@@ -279,6 +279,22 @@ export async function saveMockScore(score: MockExamScore): Promise<void> {
   }
 }
 
+export async function deleteMockScore(scoreId: string): Promise<void> {
+  const current = getLocal<MockExamScore[]>(LOCAL_MOCK_KEY, []);
+  const updated = current.filter(s => s.id !== scoreId);
+  setLocal(LOCAL_MOCK_KEY, updated);
+
+  const user = auth.currentUser;
+  if (user) {
+    try {
+      const docRef = doc(db, "users", user.uid, "mockScores", scoreId);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.warn("Failed deleting mock score from Firestore:", e);
+    }
+  }
+}
+
 // Mistake Notes (ভুল হওয়া প্রশ্নের খাতা / Spaced Repetition)
 export async function getMistakeNotes(): Promise<MistakeNote[]> {
   const user = auth.currentUser;

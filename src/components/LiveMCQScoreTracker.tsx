@@ -12,7 +12,7 @@ import {
   FileQuestion,
   HelpCircle
 } from "lucide-react";
-import { getMockScores, saveMockScore } from "../lib/storage";
+import { getMockScores, saveMockScore, deleteMockScore } from "../lib/storage";
 import { MockExamScore, BCSSubject } from "../types";
 import { BCS_SUBJECTS, formatBanglaDate, toBengaliNumber } from "../lib/bcsSyllabus";
 
@@ -368,7 +368,7 @@ export const LiveMCQScoreTracker: React.FC = () => {
                 )}
               </div>
 
-              {/* Score Box */}
+              {/* Score Box & Delete Button */}
               <div className="flex items-center gap-4 self-end sm:self-center">
                 <div className="text-right">
                   <div className="text-xl sm:text-2xl font-black text-stone-900 dark:text-stone-100">
@@ -378,6 +378,16 @@ export const LiveMCQScoreTracker: React.FC = () => {
                     সঠিক: {toBengaliNumber(item.correctAnswers)} | ভুল: {toBengaliNumber(item.wrongAnswers)} (-{toBengaliNumber(item.negativeMarks)})
                   </div>
                 </div>
+                <button
+                  onClick={async () => {
+                    await deleteMockScore(item.id);
+                    await loadScores();
+                  }}
+                  className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 transition"
+                  title="স্কোর রেকর্ড মুছে ফেলুন"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
           ))
