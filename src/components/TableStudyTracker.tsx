@@ -9,12 +9,23 @@ import {
   TrendingUp, 
   BookOpen,
   FileText,
-  HelpCircle,
+  Code,
+  Edit3,
+  Copy,
   Layers,
-  Sparkles
+  Sparkles,
+  AlertCircle,
+  X
 } from "lucide-react";
 import { DailyTablePlan, TableTopicItem } from "../types";
-import { toBengaliNumber, computeCellWeights, formatBanglaDate, calculatePlanPercentage } from "../lib/bcsSyllabus";
+import { 
+  toBengaliNumber, 
+  computeCellWeights, 
+  formatBanglaDate, 
+  calculatePlanPercentage,
+  parseTopicsFromCode,
+  exportTopicsToCodeFormat
+} from "../lib/bcsSyllabus";
 import confetti from "canvas-confetti";
 
 interface TableStudyTrackerProps {
@@ -41,8 +52,50 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
   const [newTopicDetails, setNewTopicDetails] = useState("");
   const [isAddingRow, setIsAddingRow] = useState(false);
 
+  // Code / Bulk Topic Editor Modal
+  const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
+  const [codeContent, setCodeContent] = useState("");
+  const [codeParseError, setCodeParseError] = useState("");
+  const [copiedCode, setCopiedCode] = useState(false);
+
   // Derive real-time daily percentage
   const currentDailyPercentage = calculatePlanPercentage(plan.topics);
+
+  // Open Code Modal with current topics pre-populated
+  const handleOpenCodeModal = () => {
+    const formatted = exportTopicsToCodeFormat(plan.topics);
+    setCodeContent(formatted);
+    setCodeParseError("");
+    setIsCodeModalOpen(true);
+  };
+
+  // Apply parsed topics from code editor
+  const handleApplyCode = (mode: "replace" | "append") => {
+    if (!codeContent.trim()) {
+      setCodeParseError("অনুগ্রহ করে টপিক কোড বা টেক্সট লিখুন।");
+      return;
+    }
+
+    const baseTopics = mode === "replace" ? [] : plan.topics;
+    const result = parseTopicsFromCode(codeContent, plan.topics);
+
+    if (result.topics.length === 0) {
+      setCodeParseError("কোনো টপিক সঠিকভাবে শনাক্ত করা যায়নি। ফরম্যাটটি চেক করুন।");
+      return;
+    }
+
+    const combined = mode === "replace" ? result.topics : [...plan.topics, ...result.topics];
+    const reweighted = computeCellWeights(combined);
+    const calculatedPct = calculatePlanPercentage(reweighted);
+
+    onUpdatePlan({
+      ...plan,
+      topics: reweighted,
+      completionPercentage: calculatedPct,
+    });
+
+    setIsCodeModalOpen(false);
+  };
 
   // Toggle a specific cell in a topic
   const handleToggleCell = (
@@ -221,7 +274,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                 <button
                   key={day.date}
                   onClick={() => onDateChange(day.date)}
-                  className={`py-1 px-0.5 rounded-lg text-center transition flex flex-col items-center ${
+                  className={`py-1 px-0.5 rounded-lg text-center transition flex flex-col items-center cursor-pointer ${
                     day.isCurrent
                       ? "bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 font-bold"
                       : "hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 font-medium"
@@ -244,35 +297,53 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-stone-900 p-3 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xs">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-stone-900 dark:text-stone-100 px-2 py-1 bg-stone-100 dark:bg-stone-800 rounded-lg">
-            ৫১তম বিসিএস • ডে-১ সিলেবাস টেবিল
+            সিলেবাস টেবিল ({formatBanglaDate(currentDate)})
           </span>
           <span className="text-xs text-stone-500 dark:text-stone-400 hidden sm:inline">
             (মোট {toBengaliNumber(plan.topics.length)} টি টপিক)
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 ml-auto">
+        <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+          
+          {/* Add Single Topic */}
           <button
+            id="btn-add-single-topic"
             onClick={() => setIsAddingRow(!isAddingRow)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>+ নতুন টপিক</span>
           </button>
 
+          {/* Edit/Add with Code (Bulk Format) */}
           <button
-            onClick={onResetToDay1}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium border border-stone-200 dark:border-stone-700 transition"
-            title="মূল সিলেবাসে রিসেট করুন"
+            id="btn-edit-code-format"
+            onClick={handleOpenCodeModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-200 text-xs font-semibold shadow-xs transition cursor-pointer"
+            title="কোড বা টেক্সট ফরম্যাটে টপিক এবং পার্সেন্টেজ লিখুন"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">সিলেবাস রিসেট</span>
+            <Code className="w-3.5 h-3.5 text-emerald-400 dark:text-emerald-600" />
+            <span>কোড এডিটর</span>
           </button>
 
+          {/* Reset To Default */}
+          <button
+            id="btn-reset-syllabus"
+            onClick={onResetToDay1}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium border border-stone-200 dark:border-stone-700 transition cursor-pointer"
+            title="মূল ডে-১ সিলেবাসে রিসেট করুন"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">ডিফল্ট সিলেবাস</span>
+          </button>
+
+          {/* Uncheck All */}
           {checkedCells > 0 && (
             <button
+              id="btn-uncheck-all-topics"
               onClick={handleUncheckAll}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-medium transition"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-medium transition cursor-pointer"
               title="সব টিক আনচেক করুন"
             >
               <span>আনচেক</span>
@@ -287,12 +358,12 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
           <div className="flex items-center justify-between">
             <h4 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
               <Plus className="w-4 h-4 text-emerald-600" />
-              <span>টেবিলে নতুন টপিক যুক্ত করুন</span>
+              <span>টেবিলে নতুন ১টি টপিক যুক্ত করুন</span>
             </h4>
             <button
               type="button"
               onClick={() => setIsAddingRow(false)}
-              className="text-xs text-stone-500 hover:text-stone-800 dark:hover:text-stone-200"
+              className="text-xs text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 cursor-pointer"
             >
               বাতিল
             </button>
@@ -331,13 +402,13 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
             <button
               type="button"
               onClick={() => setIsAddingRow(false)}
-              className="px-3 py-1.5 rounded-xl text-xs font-medium text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800"
+              className="px-3 py-1.5 rounded-xl text-xs font-medium text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
             >
               বাতিল
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs"
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
             >
               টেবিলে সেভ করুন
             </button>
@@ -405,7 +476,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
               {weightedTopics.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-stone-500 dark:text-stone-400 text-xs">
-                    কোনো টপিক পাওয়া যায়নি। উপরে "+ নতুন টপিক" বাটন দিয়ে যোগ করুন।
+                    কোনো টপিক পাওয়া যায়নি। উপরে "+ নতুন টপিক" অথবা "কোড এডিটর" বাটন দিয়ে যোগ করুন।
                   </td>
                 </tr>
               ) : (
@@ -552,7 +623,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                       <td className="py-3 px-2 text-center">
                         <button
                           onClick={() => handleDeleteTopic(item.id)}
-                          className="p-1 rounded-lg text-stone-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 transition"
+                          className="p-1 rounded-lg text-stone-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 transition cursor-pointer"
                           title="টপিকটি মুছুন"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -569,6 +640,132 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
         </div>
       </div>
 
+      {/* 5. CODE FORMAT / BULK TOPIC EDITOR MODAL */}
+      {isCodeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-2xl bg-white dark:bg-stone-900 rounded-2xl shadow-2xl border border-stone-200 dark:border-stone-800 overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-stone-200 dark:border-stone-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <Code className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100">
+                    কোড ফরম্যাটে টপিক ও পার্সেন্টেজ লিখুন ({formatBanglaDate(currentDate)})
+                  </h3>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                    প্রতি লাইনে নিচের নির্দিষ্ট ফরম্যাট অনুযায়ী লিখুন
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsCodeModalOpen(false)}
+                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 overflow-y-auto space-y-3 flex-1">
+              
+              {/* Format Guide Box */}
+              <div className="p-3 bg-stone-50 dark:bg-stone-800/70 rounded-xl border border-stone-200 dark:border-stone-700 text-xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-stone-900 dark:text-stone-100">নির্দিষ্ট ফরম্যাট:</span>
+                  <span className="text-[10px] text-stone-500 font-mono">Others percent will always be zero</span>
+                </div>
+                <div className="p-2 bg-white dark:bg-stone-900 rounded-lg font-mono text-[11px] text-emerald-600 dark:text-emerald-400 border border-stone-200 dark:border-stone-700 overflow-x-auto select-all">
+                  1. topic &gt; textbook percent &gt; LIVE MCQ pdf percent &gt; Q- Bank percent &gt; 0
+                </div>
+                <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                  💡 <strong>উদাহরণ:</strong><br />
+                  1. সমাস ও সন্ধি বিশ্লেষণ &gt; 3.75 &gt; 8.38 &gt; 3.13 &gt; 0<br />
+                  2. কারক, বিভক্তি ও পদ &gt; 3.75 &gt; 8.38 &gt; 3.13 &gt; 0
+                </p>
+              </div>
+
+              {/* Code Textarea */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                    টপিক কোড / টেক্সট:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(codeContent);
+                      setCopiedCode(true);
+                      setTimeout(() => setCopiedCode(false), 2000);
+                    }}
+                    className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-emerald-600 transition cursor-pointer"
+                  >
+                    {copiedCode ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedCode ? "কপি হয়েছে!" : "কোড কপি করুন"}</span>
+                  </button>
+                </div>
+
+                <textarea
+                  value={codeContent}
+                  onChange={(e) => {
+                    setCodeContent(e.target.value);
+                    if (codeParseError) setCodeParseError("");
+                  }}
+                  rows={9}
+                  placeholder={`1. সমাস ও সন্ধি বিশ্লেষণ > 3.75 > 8.38 > 3.13 > 0\n2. কারক ও বিভক্তি > 3.75 > 8.38 > 3.13 > 0`}
+                  className="w-full p-3 font-mono text-xs rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-emerald-500 outline-none leading-relaxed"
+                />
+              </div>
+
+              {/* Error Warning */}
+              {codeParseError && (
+                <div className="flex items-center gap-2 p-2.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{codeParseError}</span>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="flex items-center justify-between gap-2 p-4 border-t border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-950/50">
+              <button
+                type="button"
+                onClick={() => setIsCodeModalOpen(false)}
+                className="px-3 py-2 rounded-xl text-xs font-semibold text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-800 cursor-pointer"
+              >
+                বাতিল
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleApplyCode("append")}
+                  className="px-3 py-2 rounded-xl bg-stone-200 dark:bg-stone-800 text-stone-800 dark:text-stone-200 hover:bg-stone-300 dark:hover:bg-stone-700 text-xs font-semibold transition cursor-pointer"
+                  title="বর্তমান তালিকার শেষে যোগ করুন"
+                >
+                  + নিচে যুক্ত করুন
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleApplyCode("replace")}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                  title="পুরো দিনটির সিলেবাস এটি দিয়ে রিপ্লেস করুন"
+                >
+                  আজকের সিলেবাস সেভ করুন
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
+
