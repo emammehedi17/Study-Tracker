@@ -58,6 +58,71 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
   const [codeParseError, setCodeParseError] = useState("");
   const [copiedCode, setCopiedCode] = useState(false);
 
+  // Inline Topic & Percentage Editor (on Double Click)
+  const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{
+    topic: string;
+    details: string;
+    textbookWeight: number;
+    livemcqWeight: number;
+    qbankWeight: number;
+    othersWeight: number;
+  }>({
+    topic: "",
+    details: "",
+    textbookWeight: 0,
+    livemcqWeight: 0,
+    qbankWeight: 0,
+    othersWeight: 0,
+  });
+
+  const startEditingTopic = (topic: TableTopicItem) => {
+    setEditingTopicId(topic.id);
+    setEditForm({
+      topic: topic.topic,
+      details: topic.details || "",
+      textbookWeight: topic.textbookWeight ?? 0,
+      livemcqWeight: topic.livemcqWeight ?? 0,
+      qbankWeight: topic.qbankWeight ?? 0,
+      othersWeight: topic.othersWeight ?? 0,
+    });
+  };
+
+  const handleSaveInlineEdit = () => {
+    if (!editingTopicId) return;
+    if (!editForm.topic.trim()) return;
+
+    const updatedTopics = plan.topics.map((t) => {
+      if (t.id === editingTopicId) {
+        return {
+          ...t,
+          topic: editForm.topic.trim(),
+          details: editForm.details.trim() || undefined,
+          textbookWeight: Number(editForm.textbookWeight || 0),
+          livemcqWeight: Number(editForm.livemcqWeight || 0),
+          qbankWeight: Number(editForm.qbankWeight || 0),
+          othersWeight: Number(editForm.othersWeight || 0),
+        };
+      }
+      return t;
+    });
+
+    const reweighted = computeCellWeights(updatedTopics);
+    const calculatedPct = calculatePlanPercentage(reweighted);
+
+    onUpdatePlan({
+      ...plan,
+      topics: reweighted,
+      completionPercentage: calculatedPct,
+    });
+
+    setEditingTopicId(null);
+  };
+
+  const handleCancelInlineEdit = () => {
+    setEditingTopicId(null);
+  };
+
   // Derive real-time daily percentage
   const currentDailyPercentage = calculatePlanPercentage(plan.topics);
 
@@ -380,6 +445,12 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
         </div>
       </div>
 
+      {/* Quick Tips */}
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100/70 dark:bg-stone-800/50 text-[11px] text-stone-500 dark:text-stone-400 border border-stone-200/60 dark:border-stone-700/60">
+        <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+        <span>যেকোনো <strong>টপিকের নাম</strong> বা <strong>পার্সেন্টেজে ডাবল ক্লিক (Double Click)</strong> করে সরাসরি এডিট ও সেভ করতে পারবেন।</span>
+      </div>
+
       {/* 3. ADD NEW TOPIC INLINE FORM */}
       {isAddingRow && (
         <form onSubmit={handleAddTopic} className="p-4 rounded-2xl bg-white dark:bg-stone-900 border-2 border-emerald-500/50 shadow-sm space-y-3">
@@ -510,11 +581,144 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
               ) : (
                 weightedTopics.map((item, index) => {
                   const isAllChecked = item.textbook && item.livemcq && item.qbank && item.others;
+                  const isEditing = editingTopicId === item.id;
+
+                  if (isEditing) {
+                    return (
+                      <tr 
+                        key={item.id} 
+                        className="bg-emerald-50/70 dark:bg-emerald-950/40 border-2 border-emerald-500 dark:border-emerald-500 shadow-sm"
+                      >
+                        {/* Topic Name & Details Inputs */}
+                        <td className="py-2.5 px-3">
+                          <div className="space-y-1.5">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editForm.topic}
+                              onChange={(e) => setEditForm({ ...editForm, topic: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveInlineEdit();
+                                if (e.key === "Escape") handleCancelInlineEdit();
+                              }}
+                              placeholder="টপিকের নাম..."
+                              className="w-full px-2.5 py-1 text-xs font-semibold rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
+                            <input
+                              type="text"
+                              value={editForm.details}
+                              onChange={(e) => setEditForm({ ...editForm, details: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveInlineEdit();
+                                if (e.key === "Escape") handleCancelInlineEdit();
+                              }}
+                              placeholder="উৎস বা নোট (ঐচ্ছিক)"
+                              className="w-full px-2.5 py-1 text-[11px] rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            />
+                          </div>
+                        </td>
+
+                        {/* Textbook % input */}
+                        <td className="py-2.5 px-2 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <label className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold">Textbook %</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editForm.textbookWeight}
+                              onChange={(e) => setEditForm({ ...editForm, textbookWeight: parseFloat(e.target.value) || 0 })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveInlineEdit();
+                                if (e.key === "Escape") handleCancelInlineEdit();
+                              }}
+                              className="w-16 px-1.5 py-1 text-center font-mono text-xs font-bold rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-emerald-500"
+                            />
+                          </div>
+                        </td>
+
+                        {/* LiveMCQ % input */}
+                        <td className="py-2.5 px-2 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <label className="text-[10px] text-blue-700 dark:text-blue-300 font-bold">LiveMCQ %</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editForm.livemcqWeight}
+                              onChange={(e) => setEditForm({ ...editForm, livemcqWeight: parseFloat(e.target.value) || 0 })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveInlineEdit();
+                                if (e.key === "Escape") handleCancelInlineEdit();
+                              }}
+                              className="w-16 px-1.5 py-1 text-center font-mono text-xs font-bold rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        </td>
+
+                        {/* Q-Bank % input */}
+                        <td className="py-2.5 px-2 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <label className="text-[10px] text-amber-700 dark:text-amber-300 font-bold">Q-Bank %</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editForm.qbankWeight}
+                              onChange={(e) => setEditForm({ ...editForm, qbankWeight: parseFloat(e.target.value) || 0 })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveInlineEdit();
+                                if (e.key === "Escape") handleCancelInlineEdit();
+                              }}
+                              className="w-16 px-1.5 py-1 text-center font-mono text-xs font-bold rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-amber-500"
+                            />
+                          </div>
+                        </td>
+
+                        {/* Others % input */}
+                        <td className="py-2.5 px-2 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <label className="text-[10px] text-purple-700 dark:text-purple-300 font-bold">Others %</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editForm.othersWeight}
+                              onChange={(e) => setEditForm({ ...editForm, othersWeight: parseFloat(e.target.value) || 0 })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveInlineEdit();
+                                if (e.key === "Escape") handleCancelInlineEdit();
+                              }}
+                              className="w-16 px-1.5 py-1 text-center font-mono text-xs font-bold rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-purple-500"
+                            />
+                          </div>
+                        </td>
+
+                        {/* Save / Cancel buttons */}
+                        <td className="py-2.5 px-2 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={handleSaveInlineEdit}
+                              className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition cursor-pointer"
+                              title="সেভ করুন (Enter)"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCancelInlineEdit}
+                              className="p-1.5 rounded-lg bg-stone-200 dark:bg-stone-700 hover:bg-stone-300 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-300 transition cursor-pointer"
+                              title="বাতিল (Esc)"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
 
                   return (
                     <tr 
                       key={item.id}
-                      className={`transition-colors duration-150 ${
+                      className={`group transition-colors duration-150 ${
                         isAllChecked 
                           ? "bg-emerald-50/40 dark:bg-emerald-950/20" 
                           : "hover:bg-stone-50/80 dark:hover:bg-stone-800/40"
@@ -522,31 +726,55 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                     >
                       
                       {/* Topic Name & Details */}
-                      <td className="py-3 px-4">
-                        <div className="space-y-0.5">
-                          <span className={`font-semibold leading-snug block ${
-                            isAllChecked 
-                              ? "text-emerald-900 dark:text-emerald-200 line-through opacity-80" 
-                              : "text-stone-900 dark:text-stone-100"
-                          }`}>
-                            {toBengaliNumber(index + 1)}. {item.topic}
-                          </span>
-                          {item.details && (
-                            <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                              {item.details}
-                            </p>
-                          )}
+                      <td 
+                        onDoubleClick={() => startEditingTopic(item)}
+                        className="py-3 px-4 cursor-pointer select-none"
+                        title="ডাবল ক্লিক করে নাম ও পার্সেন্টেজ এডিট করুন"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <span className={`font-semibold leading-snug block ${
+                              isAllChecked 
+                                ? "text-emerald-900 dark:text-emerald-200 line-through opacity-80" 
+                                : "text-stone-900 dark:text-stone-100"
+                            }`}>
+                              {toBengaliNumber(index + 1)}. {item.topic}
+                            </span>
+                            {item.details && (
+                              <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                                {item.details}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Hover Edit Pencil Icon */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditingTopic(item);
+                            }}
+                            className="p-1 rounded-md text-stone-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-stone-100 dark:hover:bg-stone-800 opacity-0 group-hover:opacity-100 transition cursor-pointer shrink-0"
+                            title="টপিক ও পার্সেন্টেজ এডিট করুন"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
 
                       {/* 1. Textbook Cell */}
                       <td 
                         onClick={() => handleToggleCell(item.id, 'textbook')}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          startEditingTopic(item);
+                        }}
                         className={`py-3 px-2 text-center cursor-pointer select-none transition ${
                           item.textbook 
                             ? "bg-emerald-100/50 dark:bg-emerald-950/50" 
                             : "hover:bg-stone-100 dark:hover:bg-stone-800/60"
                         }`}
+                        title="ক্লিক করে টিক দিন • ডাবল ক্লিকে পার্সেন্টেজ এডিট করুন"
                       >
                         <div className="flex flex-col items-center justify-center gap-1">
                           <div 
@@ -569,11 +797,16 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                       {/* 2. LiveMCQ PDF Cell */}
                       <td 
                         onClick={() => handleToggleCell(item.id, 'livemcq')}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          startEditingTopic(item);
+                        }}
                         className={`py-3 px-2 text-center cursor-pointer select-none transition ${
                           item.livemcq 
                             ? "bg-blue-100/50 dark:bg-blue-950/50" 
                             : "hover:bg-stone-100 dark:hover:bg-stone-800/60"
                         }`}
+                        title="ক্লিক করে টিক দিন • ডাবল ক্লিকে পার্সেন্টেজ এডিট করুন"
                       >
                         <div className="flex flex-col items-center justify-center gap-1">
                           <div 
@@ -596,11 +829,16 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                       {/* 3. Q-Bank Cell */}
                       <td 
                         onClick={() => handleToggleCell(item.id, 'qbank')}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          startEditingTopic(item);
+                        }}
                         className={`py-3 px-2 text-center cursor-pointer select-none transition ${
                           item.qbank 
                             ? "bg-amber-100/50 dark:bg-amber-950/50" 
                             : "hover:bg-stone-100 dark:hover:bg-stone-800/60"
                         }`}
+                        title="ক্লিক করে টিক দিন • ডাবল ক্লিকে পার্সেন্টেজ এডিট করুন"
                       >
                         <div className="flex flex-col items-center justify-center gap-1">
                           <div 
@@ -623,11 +861,16 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                       {/* 4. Others Cell */}
                       <td 
                         onClick={() => handleToggleCell(item.id, 'others')}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          startEditingTopic(item);
+                        }}
                         className={`py-3 px-2 text-center cursor-pointer select-none transition ${
                           item.others 
                             ? "bg-purple-100/50 dark:bg-purple-950/50" 
                             : "hover:bg-stone-100 dark:hover:bg-stone-800/60"
                         }`}
+                        title="ক্লিক করে টিক দিন • ডাবল ক্লিকে পার্সেন্টেজ এডিট করুন"
                       >
                         <div className="flex flex-col items-center justify-center gap-1">
                           <div 
@@ -647,15 +890,25 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                         </div>
                       </td>
 
-                      {/* Delete Row Button */}
+                      {/* Actions: Edit & Delete */}
                       <td className="py-3 px-2 text-center">
-                        <button
-                          onClick={() => handleDeleteTopic(item.id)}
-                          className="p-1 rounded-lg text-stone-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 transition cursor-pointer"
-                          title="টপিকটি মুছুন"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => startEditingTopic(item)}
+                            className="p-1 rounded-lg text-stone-300 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition cursor-pointer"
+                            title="এডিট করুন"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTopic(item.id)}
+                            className="p-1 rounded-lg text-stone-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 transition cursor-pointer"
+                            title="টপিকটি মুছুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
 
                     </tr>
