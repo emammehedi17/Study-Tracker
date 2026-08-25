@@ -21,6 +21,8 @@ import { DailyTablePlan, TableTopicItem } from "../types";
 import { 
   toBengaliNumber, 
   computeCellWeights, 
+  adjustWeightsOnTopicEdit,
+  getTotalCellWeightSum,
   formatBanglaDate, 
   calculatePlanPercentage,
   parseTopicsFromCode,
@@ -92,27 +94,30 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
     if (!editingTopicId) return;
     if (!editForm.topic.trim()) return;
 
-    const updatedTopics = plan.topics.map((t) => {
+    // Automatically rebalance all other percentages equally so total sum is strictly 100%
+    const reweighted = adjustWeightsOnTopicEdit(plan.topics, editingTopicId, {
+      textbookWeight: editForm.textbookWeight,
+      livemcqWeight: editForm.livemcqWeight,
+      qbankWeight: editForm.qbankWeight,
+      othersWeight: editForm.othersWeight,
+    });
+
+    const finalizedTopics = reweighted.map((t) => {
       if (t.id === editingTopicId) {
         return {
           ...t,
           topic: editForm.topic.trim(),
           details: editForm.details.trim() || undefined,
-          textbookWeight: Number(editForm.textbookWeight || 0),
-          livemcqWeight: Number(editForm.livemcqWeight || 0),
-          qbankWeight: Number(editForm.qbankWeight || 0),
-          othersWeight: Number(editForm.othersWeight || 0),
         };
       }
       return t;
     });
 
-    const reweighted = computeCellWeights(updatedTopics);
-    const calculatedPct = calculatePlanPercentage(reweighted);
+    const calculatedPct = calculatePlanPercentage(finalizedTopics);
 
     onUpdatePlan({
       ...plan,
-      topics: reweighted,
+      topics: finalizedTopics,
       completionPercentage: calculatedPct,
     });
 
@@ -386,12 +391,16 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
 
       {/* 2. TABLE ACTIONS BAR */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-stone-900 p-3 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xs">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold text-stone-900 dark:text-stone-100 px-2 py-1 bg-stone-100 dark:bg-stone-800 rounded-lg">
             সিলেবাস টেবিল ({formatBanglaDate(currentDate)})
           </span>
           <span className="text-xs text-stone-500 dark:text-stone-400 hidden sm:inline">
             (মোট {toBengaliNumber(plan.topics.length)} টি টপিক)
+          </span>
+          <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-lg flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+            <span>মোট ওয়েট: ১০০%</span>
           </span>
         </div>
 
@@ -615,6 +624,10 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                               placeholder="উৎস বা নোট (ঐচ্ছিক)"
                               className="w-full px-2.5 py-1 text-[11px] rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                             />
+                            <div className="flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
+                              <Sparkles className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span>টপিক যোগফল: {(Number(editForm.textbookWeight || 0) + Number(editForm.livemcqWeight || 0) + Number(editForm.qbankWeight || 0) + Number(editForm.othersWeight || 0)).toFixed(2)}% (বাকিগুলো সমানভাবে ব্যালেন্স হবে)</span>
+                            </div>
                           </div>
                         </td>
 

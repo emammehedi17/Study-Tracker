@@ -52,14 +52,175 @@ export function hasCustomWeights(topic: TableTopicItem): boolean {
   );
 }
 
+// Calculate total percentage across all topics and cells
+export function getTotalCellWeightSum(topics: TableTopicItem[]): number {
+  if (!topics || topics.length === 0) return 0;
+  const total = topics.reduce((sum, t) => {
+    return sum + (t.textbookWeight || 0) + (t.livemcqWeight || 0) + (t.qbankWeight || 0) + (t.othersWeight || 0);
+  }, 0);
+  return Number(total.toFixed(2));
+}
+
+// Balance and distribute weights equally so the total day's percentage is always strictly 100%
+// When any cell or topic's percentage is increased or decreased, all other percentages are reduced/increased equally.
+export function adjustWeightsOnTopicEdit(
+  topics: TableTopicItem[],
+  targetTopicId: string,
+  newWeights: {
+    textbookWeight: number;
+    livemcqWeight: number;
+    qbankWeight: number;
+    othersWeight: number;
+  }
+): TableTopicItem[] {
+  if (!topics || topics.length === 0) return [];
+
+  // Clamp target cell inputs to non-negative and max 100
+  const cleanTargetWeights = {
+    textbookWeight: Math.max(0, Math.min(100, Number(newWeights.textbookWeight || 0))),
+    livemcqWeight: Math.max(0, Math.min(100, Number(newWeights.livemcqWeight || 0))),
+    qbankWeight: Math.max(0, Math.min(100, Number(newWeights.qbankWeight || 0))),
+    othersWeight: Math.max(0, Math.min(100, Number(newWeights.othersWeight || 0))),
+  };
+
+  const targetNewSum = cleanTargetWeights.textbookWeight +
+    cleanTargetWeights.livemcqWeight +
+    cleanTargetWeights.qbankWeight +
+    cleanTargetWeights.othersWeight;
+
+  if (topics.length === 1) {
+    if (targetNewSum === 0) {
+      return [{
+        ...topics[0],
+        textbookWeight: 30,
+        livemcqWeight: 35,
+        qbankWeight: 25,
+        othersWeight: 10,
+      }];
+    }
+    const factor = 100 / targetNewSum;
+    return [{
+      ...topics[0],
+      textbookWeight: Number((cleanTargetWeights.textbookWeight * factor).toFixed(2)),
+      livemcqWeight: Number((cleanTargetWeights.livemcqWeight * factor).toFixed(2)),
+      qbankWeight: Number((cleanTargetWeights.qbankWeight * factor).toFixed(2)),
+      othersWeight: Number((cleanTargetWeights.othersWeight * factor).toFixed(2)),
+    }];
+  }
+
+  // Cap target topic sum at 100
+  const clampedTargetSum = Math.min(100, targetNewSum);
+  const remainingBudget = Math.max(0, 100 - clampedTargetSum);
+
+  // Other topics
+  const otherTopics = topics.filter((t) => t.id !== targetTopicId);
+
+  // Extract all other cell references to balance equally
+  type CellRef = { topicIndex: number; key: 'textbookWeight' | 'livemcqWeight' | 'qbankWeight' | 'othersWeight'; val: number };
+  const otherCells: CellRef[] = [];
+
+  otherTopics.forEach((t, tIdx) => {
+    otherCells.push({ topicIndex: tIdx, key: 'textbookWeight', val: Math.max(0, t.textbookWeight || 0) });
+    otherCells.push({ topicIndex: tIdx, key: 'livemcqWeight', val: Math.max(0, t.livemcqWeight || 0) });
+    otherCells.push({ topicIndex: tIdx, key: 'qbankWeight', val: Math.max(0, t.qbankWeight || 0) });
+    otherCells.push({ topicIndex: tIdx, key: 'othersWeight', val: Math.max(0, t.othersWeight || 0) });
+  });
+
+  const currentOtherSum = otherCells.reduce((acc, c) => acc + c.val, 0);
+  const deltaNeeded = remainingBudget - currentOtherSum; // +ve if need to increase, -ve if need to decrease
+
+  if (deltaNeeded > 0) {
+    // Increase all other cells equally
+    const addPerCell = deltaNeeded / otherCells.length;
+    otherCells.forEach((c) => {
+      c.val += addPerCell;
+    });
+  } else if (deltaNeeded < 0) {
+    // Decrease other cells equally, clamping at 0 and re-distributing deficit
+    let remainingDeficit = Math.abs(deltaNeeded);
+    let activeCells = [...otherCells];
+
+    while (remainingDeficit > 0.0001 && activeCells.length > 0) {
+      const subPerCell = remainingDeficit / activeCells.length;
+      let newlyZeroedCount = 0;
+
+      activeCells.forEach((c) => {
+        if (c.val <= subPerCell) {
+          remainingDeficit -= c.val;
+          c.val = 0;
+          newlyZeroedCount++;
+        } else {
+          c.val -= subPerCell;
+          remainingDeficit -= subPerCell;
+        }
+      });
+
+      activeCells = activeCells.filter((c) => c.val > 0.0001);
+      if (newlyZeroedCount === 0) break;
+    }
+  }
+
+  // Re-apply to other topics clone
+  const updatedOtherTopics = otherTopics.map((t) => ({ ...t }));
+  otherCells.forEach((c) => {
+    updatedOtherTopics[c.topicIndex][c.key] = Number(c.val.toFixed(2));
+  });
+
+  // Calculate grand total to fix rounding micro-differences (e.g. 99.99 or 100.01)
+  let grandTotal = cleanTargetWeights.textbookWeight +
+    cleanTargetWeights.livemcqWeight +
+    cleanTargetWeights.qbankWeight +
+    cleanTargetWeights.othersWeight;
+
+  updatedOtherTopics.forEach((t) => {
+    grandTotal += (t.textbookWeight || 0) + (t.livemcqWeight || 0) + (t.qbankWeight || 0) + (t.othersWeight || 0);
+  });
+
+  const roundDiff = Number((100 - grandTotal).toFixed(2));
+  if (roundDiff !== 0 && updatedOtherTopics.length > 0) {
+    const targetCell = updatedOtherTopics[0];
+    targetCell.textbookWeight = Math.max(0, Number(((targetCell.textbookWeight || 0) + roundDiff).toFixed(2)));
+  }
+
+  // Assemble full topic list
+  return topics.map((t) => {
+    if (t.id === targetTopicId) {
+      return {
+        ...t,
+        textbookWeight: Number(cleanTargetWeights.textbookWeight.toFixed(2)),
+        livemcqWeight: Number(cleanTargetWeights.livemcqWeight.toFixed(2)),
+        qbankWeight: Number(cleanTargetWeights.qbankWeight.toFixed(2)),
+        othersWeight: Number(cleanTargetWeights.othersWeight.toFixed(2)),
+      };
+    }
+    const found = updatedOtherTopics.find((ot) => ot.id === t.id);
+    return found || t;
+  });
+}
+
 // Automatically distribute 100% of the day's total among all cells,
-// or retain user-defined explicit weights if they provided them via format
+// ensuring the total sum of all percentages is strictly 100%
 export function computeCellWeights(topics: TableTopicItem[]): TableTopicItem[] {
   if (!topics || topics.length === 0) return [];
 
-  // If all topics already have explicit custom weights, preserve them
+  // If all topics already have explicit custom weights, normalize to strictly 100%
   const allCustom = topics.every((t) => hasCustomWeights(t));
   if (allCustom) {
+    const currentSum = topics.reduce((sum, t) => {
+      return sum + (t.textbookWeight || 0) + (t.livemcqWeight || 0) + (t.qbankWeight || 0) + (t.othersWeight || 0);
+    }, 0);
+
+    if (Math.abs(currentSum - 100) > 0.05 && currentSum > 0) {
+      const factor = 100 / currentSum;
+      return topics.map((t) => ({
+        ...t,
+        textbookWeight: Number(((t.textbookWeight || 0) * factor).toFixed(2)),
+        livemcqWeight: Number(((t.livemcqWeight || 0) * factor).toFixed(2)),
+        qbankWeight: Number(((t.qbankWeight || 0) * factor).toFixed(2)),
+        othersWeight: Number(((t.othersWeight || 0) * factor).toFixed(2)),
+      }));
+    }
+
     return topics.map((t) => ({
       ...t,
       textbookWeight: Number(Number(t.textbookWeight || 0).toFixed(2)),
@@ -74,17 +235,7 @@ export function computeCellWeights(topics: TableTopicItem[]): TableTopicItem[] {
 
   // Default distribution within each topic:
   // Textbook: 30%, LiveMCQ PDF: 35%, Q-Bank: 25%, Others: 10%
-  return topics.map((t) => {
-    if (hasCustomWeights(t)) {
-      return {
-        ...t,
-        textbookWeight: Number(Number(t.textbookWeight || 0).toFixed(2)),
-        livemcqWeight: Number(Number(t.livemcqWeight || 0).toFixed(2)),
-        qbankWeight: Number(Number(t.qbankWeight || 0).toFixed(2)),
-        othersWeight: Number(Number(t.othersWeight || 0).toFixed(2)),
-      };
-    }
-
+  const result = topics.map((t) => {
     const tbW = Number((topicWeight * 0.30).toFixed(2));
     const liveW = Number((topicWeight * 0.35).toFixed(2));
     const qbW = Number((topicWeight * 0.25).toFixed(2));
@@ -98,6 +249,15 @@ export function computeCellWeights(topics: TableTopicItem[]): TableTopicItem[] {
       othersWeight: othW,
     };
   });
+
+  // Ensure exact 100 sum
+  const sumTotal = result.reduce((s, t) => s + (t.textbookWeight || 0) + (t.livemcqWeight || 0) + (t.qbankWeight || 0) + (t.othersWeight || 0), 0);
+  const diff = Number((100 - sumTotal).toFixed(2));
+  if (diff !== 0 && result.length > 0) {
+    result[0].textbookWeight = Number(((result[0].textbookWeight || 0) + diff).toFixed(2));
+  }
+
+  return result;
 }
 
 /**
