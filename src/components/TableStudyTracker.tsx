@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Check, 
   Plus, 
@@ -15,6 +15,8 @@ import {
   Layers,
   Sparkles,
   AlertCircle,
+  Undo2,
+  Redo2,
   X
 } from "lucide-react";
 import { DailyTablePlan, TableTopicItem } from "../types";
@@ -53,6 +55,83 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
   const [newTopicText, setNewTopicText] = useState("");
   const [newTopicDetails, setNewTopicDetails] = useState("");
   const [isAddingRow, setIsAddingRow] = useState(false);
+
+  // Undo & Redo History Stacks (holds up to 7 actions)
+  const [undoStack, setUndoStack] = useState<DailyTablePlan[]>([]);
+  const [redoStack, setRedoStack] = useState<DailyTablePlan[]>([]);
+
+  // Reset history stack when date changes
+  useEffect(() => {
+    setUndoStack([]);
+    setRedoStack([]);
+  }, [currentDate]);
+
+  // Push previous state to undo stack and clear redo stack upon new user modifications
+  const updatePlanWithHistory = (newPlan: DailyTablePlan) => {
+    setUndoStack((prev) => {
+      const snapshot: DailyTablePlan = JSON.parse(JSON.stringify(plan));
+      const nextStack = [snapshot, ...prev];
+      return nextStack.slice(0, 7);
+    });
+    setRedoStack([]);
+    onUpdatePlan(newPlan);
+  };
+
+  const handleUndo = () => {
+    if (undoStack.length === 0) return;
+    const [previousPlan, ...remainingUndo] = undoStack;
+
+    // Push current snapshot to redo stack (up to 7)
+    setRedoStack((prev) => {
+      const snapshot: DailyTablePlan = JSON.parse(JSON.stringify(plan));
+      const nextStack = [snapshot, ...prev];
+      return nextStack.slice(0, 7);
+    });
+    setUndoStack(remainingUndo);
+
+    onUpdatePlan(previousPlan);
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+    const [nextPlan, ...remainingRedo] = redoStack;
+
+    // Push current snapshot to undo stack (up to 7)
+    setUndoStack((prev) => {
+      const snapshot: DailyTablePlan = JSON.parse(JSON.stringify(plan));
+      const nextStack = [snapshot, ...prev];
+      return nextStack.slice(0, 7);
+    });
+    setRedoStack(remainingRedo);
+
+    onUpdatePlan(nextPlan);
+  };
+
+  // Keyboard shortcut listener for Ctrl+Z (Undo) and Ctrl+Y / Ctrl+Shift+Z (Redo)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        if (e.shiftKey) {
+          e.preventDefault();
+          handleRedo();
+        } else {
+          e.preventDefault();
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undoStack, redoStack, plan]);
 
   // Code / Bulk Topic Editor Modal
   const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
@@ -115,7 +194,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
 
     const calculatedPct = calculatePlanPercentage(finalizedTopics);
 
-    onUpdatePlan({
+    updatePlanWithHistory({
       ...plan,
       topics: finalizedTopics,
       completionPercentage: calculatedPct,
@@ -158,7 +237,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
     const reweighted = computeCellWeights(combined);
     const calculatedPct = calculatePlanPercentage(reweighted);
 
-    onUpdatePlan({
+    updatePlanWithHistory({
       ...plan,
       topics: reweighted,
       completionPercentage: calculatedPct,
@@ -199,7 +278,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
 
     const calculatedPct = calculatePlanPercentage(updatedTopics);
 
-    onUpdatePlan({
+    updatePlanWithHistory({
       ...plan,
       topics: updatedTopics,
       completionPercentage: calculatedPct,
@@ -224,7 +303,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
     const updatedTopics = computeCellWeights([...plan.topics, newTopic]);
     const calculatedPct = calculatePlanPercentage(updatedTopics);
 
-    onUpdatePlan({
+    updatePlanWithHistory({
       ...plan,
       topics: updatedTopics,
       completionPercentage: calculatedPct,
@@ -241,7 +320,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
     const reweighted = computeCellWeights(remaining);
     const calculatedPct = calculatePlanPercentage(reweighted);
 
-    onUpdatePlan({
+    updatePlanWithHistory({
       ...plan,
       topics: reweighted,
       completionPercentage: calculatedPct,
@@ -267,7 +346,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
 
     const calculatedPct = calculatePlanPercentage(allChecked);
 
-    onUpdatePlan({
+    updatePlanWithHistory({
       ...plan,
       topics: allChecked,
       completionPercentage: calculatedPct,
@@ -284,7 +363,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
       qbank: false,
       others: false,
     }));
-    onUpdatePlan({
+    updatePlanWithHistory({
       ...plan,
       topics: cleared,
       completionPercentage: 0,
@@ -406,6 +485,59 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
 
         <div className="flex items-center gap-1.5 ml-auto flex-wrap">
           
+          {/* Undo & Redo History (Last 7 Actions) */}
+          <div className="flex items-center bg-stone-100 dark:bg-stone-800 p-0.5 rounded-xl border border-stone-200 dark:border-stone-700 shadow-2xs">
+            <button
+              id="btn-undo-action"
+              type="button"
+              onClick={handleUndo}
+              disabled={undoStack.length === 0}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                undoStack.length > 0
+                  ? "text-stone-800 dark:text-stone-200 hover:bg-white dark:hover:bg-stone-700 shadow-xs cursor-pointer"
+                  : "text-stone-400 dark:text-stone-600 cursor-not-allowed opacity-40"
+              }`}
+              title={
+                undoStack.length > 0
+                  ? `পূর্বাবস্থায় ফিরুন (Undo - Ctrl+Z) • ${undoStack.length}/৭ টি অ্যাকশন সংরক্ষিত`
+                  : "পূর্বাবস্থায় ফেরার মতো কোনো অ্যাকশন নেই"
+              }
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              <span>Undo</span>
+              {undoStack.length > 0 && (
+                <span className="text-[10px] font-bold bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300 px-1.5 py-0.2 rounded-full font-mono">
+                  {toBengaliNumber(undoStack.length)}
+                </span>
+              )}
+            </button>
+
+            <button
+              id="btn-redo-action"
+              type="button"
+              onClick={handleRedo}
+              disabled={redoStack.length === 0}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                redoStack.length > 0
+                  ? "text-stone-800 dark:text-stone-200 hover:bg-white dark:hover:bg-stone-700 shadow-xs cursor-pointer"
+                  : "text-stone-400 dark:text-stone-600 cursor-not-allowed opacity-40"
+              }`}
+              title={
+                redoStack.length > 0
+                  ? `পুনরায় করুন (Redo - Ctrl+Y) • ${redoStack.length}/৭ টি অ্যাকশন`
+                  : "পুনরায় করার মতো কোনো অ্যাকশন নেই"
+              }
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+              <span>Redo</span>
+              {redoStack.length > 0 && (
+                <span className="text-[10px] font-bold bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300 px-1.5 py-0.2 rounded-full font-mono">
+                  {toBengaliNumber(redoStack.length)}
+                </span>
+              )}
+            </button>
+          </div>
+
           {/* Add Single Topic */}
           <button
             id="btn-add-single-topic"
@@ -457,7 +589,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
       {/* Quick Tips */}
       <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100/70 dark:bg-stone-800/50 text-[11px] text-stone-500 dark:text-stone-400 border border-stone-200/60 dark:border-stone-700/60">
         <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-        <span>যেকোনো <strong>টপিকের নাম</strong> বা <strong>পার্সেন্টেজে ডাবল ক্লিক (Double Click)</strong> করে সরাসরি এডিট ও সেভ করতে পারবেন।</span>
+        <span>যেকোনো <strong>টপিকের নাম</strong> বা <strong>পার্সেন্টেজে ডাবল ক্লিক (Double Click)</strong> করে সরাসরি এডিট ও সেভ করতে পারবেন। কোনো ভুলে <strong>Undo (Ctrl+Z)</strong> বা <strong>Redo (Ctrl+Y)</strong> ব্যবহার করুন।</span>
       </div>
 
       {/* 3. ADD NEW TOPIC INLINE FORM */}
@@ -525,16 +657,16 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
       )}
 
       {/* 4. MAIN SYLLABUS TABLE TRACKER */}
-      <div className="overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 shadow-xs">
-        <div className="overflow-x-auto">
+      <div className="rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 shadow-xs">
+        <div className="overflow-x-auto rounded-2xl">
           <table className="w-full text-left border-collapse">
             
-            {/* Table Header */}
-            <thead>
-              <tr className="border-b border-stone-200 dark:border-stone-800 bg-stone-50/80 dark:bg-stone-950/60 text-stone-700 dark:text-stone-300 text-xs font-bold uppercase tracking-wider">
+            {/* Table Header - Fixed at the top under Navbar when scrolled */}
+            <thead className="sticky top-16 z-20 shadow-xs">
+              <tr className="border-b border-stone-200 dark:border-stone-800 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md text-stone-700 dark:text-stone-300 text-xs font-bold uppercase tracking-wider">
                 
                 {/* Topic Column */}
-                <th className="py-3 px-4 min-w-[220px]">
+                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-4 min-w-[220px] first:rounded-tl-2xl border-b border-stone-200 dark:border-stone-800">
                   <div className="flex items-center gap-1.5">
                     <BookOpen className="w-4 h-4 text-stone-500" />
                     <span>Topic (টপিক)</span>
@@ -542,7 +674,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                 </th>
 
                 {/* Textbook Column */}
-                <th className="py-3 px-3 text-center min-w-[110px]">
+                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-3 text-center min-w-[110px] border-b border-stone-200 dark:border-stone-800">
                   <div className="flex flex-col items-center">
                     <span className="text-emerald-700 dark:text-emerald-400 font-bold">Textbook</span>
                     <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">বোর্ড বই</span>
@@ -550,7 +682,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                 </th>
 
                 {/* LiveMCQ PDF Column */}
-                <th className="py-3 px-3 text-center min-w-[120px]">
+                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-3 text-center min-w-[120px] border-b border-stone-200 dark:border-stone-800">
                   <div className="flex flex-col items-center">
                     <span className="text-blue-700 dark:text-blue-400 font-bold">LiveMCQ PDF</span>
                     <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">পিডিএফ শিট</span>
@@ -558,7 +690,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                 </th>
 
                 {/* Q-Bank Column */}
-                <th className="py-3 px-3 text-center min-w-[110px]">
+                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-3 text-center min-w-[110px] border-b border-stone-200 dark:border-stone-800">
                   <div className="flex flex-col items-center">
                     <span className="text-amber-700 dark:text-amber-400 font-bold">Q-Bank</span>
                     <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">প্রশ্নব্যাংক</span>
@@ -566,7 +698,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                 </th>
 
                 {/* Others Column */}
-                <th className="py-3 px-3 text-center min-w-[100px]">
+                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-3 text-center min-w-[100px] border-b border-stone-200 dark:border-stone-800">
                   <div className="flex flex-col items-center">
                     <span className="text-purple-700 dark:text-purple-400 font-bold">Others</span>
                     <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">রিভিশন/অন্যান্য</span>
@@ -574,7 +706,7 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
                 </th>
 
                 {/* Row Delete Action */}
-                <th className="py-3 px-2 text-center w-10"></th>
+                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-2 text-center w-10 last:rounded-tr-2xl border-b border-stone-200 dark:border-stone-800"></th>
 
               </tr>
             </thead>
