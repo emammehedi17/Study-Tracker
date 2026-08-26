@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { onAuthStateChanged, User, auth } from "./lib/firebase";
 import { 
   getDailyPlan, 
@@ -6,7 +6,9 @@ import {
   initSeedDataIfNeeded, 
   resetToDay1Plan, 
   getUserStats,
-  getWeeklyProgress 
+  getWeeklyProgress,
+  subscribeToUserPlans,
+  getLocal
 } from "./lib/storage";
 import { calculatePlanPercentage } from "./lib/bcsSyllabus";
 import { DailyTablePlan } from "./types";
@@ -32,6 +34,12 @@ export default function App() {
     return localStorage.getItem("bcs51_dark_mode") === "true";
   });
   const [weeklyStats, setWeeklyStats] = useState(() => getWeeklyProgress(todayStr));
+  const [isLiveSynced, setIsLiveSynced] = useState<boolean>(false);
+
+  const currentDateRef = useRef(currentDate);
+  useEffect(() => {
+    currentDateRef.current = currentDate;
+  }, [currentDate]);
 
   // Sync Dark Mode class to documentElement
   useEffect(() => {
@@ -43,13 +51,43 @@ export default function App() {
     localStorage.setItem("bcs51_dark_mode", String(darkMode));
   }, [darkMode]);
 
-  // Auth Listener
+  // Auth Listener and Real-time Multi-Device Firestore Subscription
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    let unsubscribeSnapshot: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      loadPlanForDate(currentDate);
+
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+        unsubscribeSnapshot = null;
+      }
+
+      if (currentUser) {
+        setIsLiveSynced(true);
+        // Subscribe to real-time updates from Firestore across all devices
+        unsubscribeSnapshot = subscribeToUserPlans(currentUser.uid, (allPlans) => {
+          const activeDate = currentDateRef.current;
+          if (allPlans[activeDate]) {
+            setCurrentPlan(allPlans[activeDate]);
+          }
+          setWeeklyStats(getWeeklyProgress(activeDate));
+          const stats = getUserStats(activeDate);
+          setStreakDays(stats.streakDays ?? 0);
+        });
+      } else {
+        setIsLiveSynced(false);
+      }
+
+      loadPlanForDate(currentDateRef.current);
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
+    };
   }, []);
 
   // Load Plan when date changes
@@ -65,7 +103,7 @@ export default function App() {
     setStreakDays(stats.streakDays ?? 0);
   };
 
-  // Plan Update Handler
+  // Plan Update Handler (saves locally and synchronizes to Firestore in real-time)
   const handleUpdatePlan = async (updatedPlan: DailyTablePlan) => {
     const calculatedPct = calculatePlanPercentage(updatedPlan.topics);
     const finalPlan: DailyTablePlan = {
@@ -96,6 +134,7 @@ export default function App() {
         onToggleDarkMode={() => setDarkMode(!darkMode)}
         user={user}
         streakDays={streakDays}
+        isLiveSynced={isLiveSynced}
       />
 
       {/* Main Single-View Table Tracker Content */}
@@ -118,3 +157,4 @@ export default function App() {
     </div>
   );
 }
+

@@ -13,7 +13,8 @@ import {
   ExternalLink,
   Copy,
   Check,
-  X
+  X,
+  Cloud
 } from "lucide-react";
 import { User, signInWithPopup, auth, googleProvider, signOut } from "../lib/firebase";
 import { toBengaliNumber, formatBanglaDate } from "../lib/bcsSyllabus";
@@ -25,6 +26,7 @@ interface NavbarProps {
   onToggleDarkMode: () => void;
   user: User | null;
   streakDays: number;
+  isLiveSynced?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,6 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleDarkMode,
   user,
   streakDays,
+  isLiveSynced = false,
 }) => {
   const [showDomainHelpModal, setShowDomainHelpModal] = useState(false);
   const [copiedDomain, setCopiedDomain] = useState(false);
@@ -178,6 +181,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Right Side: Streak, Dark Mode, Auth */}
           <div className="flex items-center gap-2">
             
+            {/* Real-time Cloud Sync Status */}
+            {user && (
+              <div 
+                className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60"
+                title="রিয়েল-টাইম ক্লাউড সিঙ্ক সক্রিয়: যেকোনো ডিভাইসে পরিবর্তন করলে অন্য সব সাইন-ইন করা ডিভাইসে সাথে সাথে আপডেট হবে।"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="flex items-center gap-1 font-medium">
+                  <Cloud className="w-3 h-3" />
+                  <span>লাইভ সিঙ্ক</span>
+                </span>
+              </div>
+            )}
+
             {/* Streak */}
             <div 
               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${

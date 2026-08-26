@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "DailyTablePlan": {
+      "title": "DailyTablePlan",
+      "description": "User daily study plan and topic checklist progress",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "Date formatted as YYYY-MM-DD" },
+        "topics": {
+          "type": "array",
+          "description": "List of topic checklist items with percentage weights and status"
+        },
+        "completionPercentage": { "type": "number", "description": "Total completed percentage for the day" },
+        "notes": { "type": "string", "description": "Optional notes or comments" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last update" }
+      },
+      "required": ["date", "topics", "completionPercentage"]
+    },
+    "UserStats": {
+      "title": "UserStats",
+      "description": "User consecutive streak and study statistics",
+      "type": "object",
+      "properties": {
+        "streakDays": { "type": "number" },
+        "lastStudiedDate": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}/tablePlans/{dateId}": {
+      "schema": "DailyTablePlan",
+      "description": "Daily study table plan for a specific date for an authenticated user"
+    },
+    "/users/{userId}/stats/{statsId}": {
+      "schema": "UserStats",
+      "description": "Aggregated user stats and streak data"
+    }
+  }
+}

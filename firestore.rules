@@ -1,25 +1,31 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User profile and subcollections
+    // Catch-all default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // User profile and subcollections for authenticated users
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       
+      match /tablePlans/{dateId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
       match /dailyPlans/{dateId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
       
-      match /mockScores/{scoreId} {
+      match /stats/{statsId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
-      
-      match /mistakeNotes/{noteId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
-      
-      match /studySessions/{sessionId} {
+
+      match /{subcollection=**} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
   }
 }
+

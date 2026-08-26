@@ -1,13 +1,20 @@
-import { doc, getDoc, setDoc, getDocs, collection } from "firebase/firestore";
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  collection, 
+  onSnapshot, 
+  Unsubscribe 
+} from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { DailyTablePlan, TableTopicItem, UserStats } from "../types";
-import { DEFAULT_DAY_1_TOPICS, getInitialDay1Plan, computeCellWeights } from "./bcsSyllabus";
+import { getInitialDay1Plan, computeCellWeights } from "./bcsSyllabus";
 
 const LOCAL_TABLE_PLANS_KEY = "bcs51_table_plans";
 const LOCAL_STATS_KEY = "bcs51_user_stats";
 
 // Helper to get local storage JSON
-function getLocal<T>(key: string, fallback: T): T {
+export function getLocal<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
@@ -18,7 +25,7 @@ function getLocal<T>(key: string, fallback: T): T {
 }
 
 // Helper to set local storage JSON
-function setLocal<T>(key: string, data: T): void {
+export function setLocal<T>(key: string, data: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e) {
@@ -64,14 +71,10 @@ export function resetToDay1Plan(targetDate: string): DailyTablePlan {
   return sample;
 }
 
-// Get Daily Table Plan
+// Get Daily Table Plan (checks local cache first, then Firestore if logged in)
 export async function getDailyPlan(date: string): Promise<DailyTablePlan> {
-  const allPlans = getLocal<Record<string, DailyTablePlan>>(LOCAL_TABLE_PLANS_KEY, {});
   const user = auth.currentUser;
-
-  if (allPlans[date]) {
-    return allPlans[date];
-  }
+  const allPlans = getLocal<Record<string, DailyTablePlan>>(LOCAL_TABLE_PLANS_KEY, {});
 
   if (user) {
     try {
@@ -84,8 +87,12 @@ export async function getDailyPlan(date: string): Promise<DailyTablePlan> {
         return data;
       }
     } catch (err) {
-      console.warn("Firestore fetch failed, returning initial template:", err);
+      console.warn("Firestore fetch failed, checking local cache:", err);
     }
+  }
+
+  if (allPlans[date] && allPlans[date].topics && allPlans[date].topics.length > 0) {
+    return allPlans[date];
   }
 
   const initial = getInitialDay1Plan(date);
@@ -94,7 +101,42 @@ export async function getDailyPlan(date: string): Promise<DailyTablePlan> {
   return initial;
 }
 
-// Save Daily Table Plan
+// Subscribe to real-time changes across all devices for an authenticated user
+export function subscribeToUserPlans(
+  userId: string,
+  onUpdate: (allPlans: Record<string, DailyTablePlan>) => void
+): Unsubscribe {
+  const tablePlansCol = collection(db, "users", userId, "tablePlans");
+
+  const unsubscribe = onSnapshot(
+    tablePlansCol,
+    (snapshot) => {
+      const allPlans = getLocal<Record<string, DailyTablePlan>>(LOCAL_TABLE_PLANS_KEY, {});
+      let hasChanges = false;
+
+      snapshot.docChanges().forEach((change) => {
+        const data = change.doc.data() as DailyTablePlan;
+        const dateKey = change.doc.id || data.date;
+        if (dateKey) {
+          allPlans[dateKey] = data;
+          hasChanges = true;
+        }
+      });
+
+      if (hasChanges || !snapshot.empty) {
+        setLocal(LOCAL_TABLE_PLANS_KEY, allPlans);
+        onUpdate({ ...allPlans });
+      }
+    },
+    (error) => {
+      console.warn("Firestore real-time subscription error:", error);
+    }
+  );
+
+  return unsubscribe;
+}
+
+// Save Daily Table Plan and sync to Firestore immediately
 export async function saveDailyPlan(plan: DailyTablePlan): Promise<void> {
   const user = auth.currentUser;
   
@@ -109,7 +151,7 @@ export async function saveDailyPlan(plan: DailyTablePlan): Promise<void> {
     updatedAt: new Date().toISOString(),
   };
 
-  // 1. Local storage save
+  // 1. Local storage save immediately for snappy feedback
   const allPlans = getLocal<Record<string, DailyTablePlan>>(LOCAL_TABLE_PLANS_KEY, {});
   allPlans[plan.date] = updatedPlan;
   setLocal(LOCAL_TABLE_PLANS_KEY, allPlans);
@@ -117,13 +159,13 @@ export async function saveDailyPlan(plan: DailyTablePlan): Promise<void> {
   // 2. Update Streak in stats
   updateUserStreak(plan.date);
 
-  // 3. Firestore save if signed in
+  // 3. Real-time Firestore sync if signed in
   if (user) {
     try {
       const planDocRef = doc(db, "users", user.uid, "tablePlans", plan.date);
       await setDoc(planDocRef, updatedPlan, { merge: true });
     } catch (err) {
-      console.warn("Firestore table plan save failed:", err);
+      console.error("Firestore table plan real-time sync failed:", err);
     }
   }
 }
@@ -179,7 +221,6 @@ export function isDayAllChecked(plan?: DailyTablePlan | null): boolean {
     const tbOk = !!t.textbook;
     const liveOk = !!t.livemcq;
     const qbOk = !!t.qbank;
-    // Others is purely optional/custom and does NOT count towards the strike requirement
     return tbOk && liveOk && qbOk;
   });
 }
@@ -189,7 +230,6 @@ export function calculateCurrentStreak(referenceDateStr: string): number {
   const allPlans = getLocal<Record<string, DailyTablePlan>>(LOCAL_TABLE_PLANS_KEY, {});
   const refPlan = allPlans[referenceDateStr];
 
-  // If the active day's checkboxes are not ALL checked, streak is 0
   if (!isDayAllChecked(refPlan)) {
     return 0;
   }
@@ -200,7 +240,6 @@ export function calculateCurrentStreak(referenceDateStr: string): number {
 
   const cursor = new Date(parts[0], parts[1] - 1, parts[2]);
 
-  // Check previous consecutive days
   while (true) {
     cursor.setDate(cursor.getDate() - 1);
     const y = cursor.getFullYear();
@@ -238,3 +277,4 @@ export function getUserStats(referenceDate?: string): UserStats {
     lastStudiedDate: todayStr,
   };
 }
+
