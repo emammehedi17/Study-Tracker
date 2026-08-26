@@ -657,59 +657,58 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
       )}
 
       {/* 4. MAIN SYLLABUS TABLE TRACKER */}
-      <div className="rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 shadow-xs">
-        <div className="overflow-x-auto rounded-2xl">
-          <table className="w-full text-left border-collapse">
-            
-            {/* Table Header - Fixed at the top under Navbar when scrolled */}
-            <thead className="sticky top-16 z-20 shadow-xs">
-              <tr className="border-b border-stone-200 dark:border-stone-800 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md text-stone-700 dark:text-stone-300 text-xs font-bold uppercase tracking-wider">
-                
-                {/* Topic Column */}
-                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-4 min-w-[220px] first:rounded-tl-2xl border-b border-stone-200 dark:border-stone-800">
-                  <div className="flex items-center gap-1.5">
-                    <BookOpen className="w-4 h-4 text-stone-500" />
-                    <span>Topic (টপিক)</span>
-                  </div>
-                </th>
+      <div className="rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 shadow-xs overflow-x-auto sm:overflow-x-visible">
+        <table className="w-full text-left border-collapse">
+          
+          {/* Table Header - Fixed at the top under Navbar (top-16) when scrolled */}
+          <thead className="bg-stone-100 dark:bg-stone-900">
+            <tr className="border-b border-stone-200 dark:border-stone-800 text-stone-700 dark:text-stone-300 text-xs font-bold uppercase tracking-wider">
+              
+              {/* Topic Column */}
+              <th className="sticky top-16 z-20 bg-stone-100 dark:bg-stone-900 py-3.5 px-4 min-w-[180px] sm:min-w-[220px] first:rounded-tl-2xl border-b border-stone-200 dark:border-stone-800 shadow-2xs">
+                <div className="flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4 text-stone-500" />
+                  <span>Topic (টপিক)</span>
+                </div>
+              </th>
 
-                {/* Textbook Column */}
-                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-3 text-center min-w-[110px] border-b border-stone-200 dark:border-stone-800">
-                  <div className="flex flex-col items-center">
-                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">Textbook</span>
-                    <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">বোর্ড বই</span>
-                  </div>
-                </th>
+              {/* Textbook Column */}
+              <th className="sticky top-16 z-20 bg-stone-100 dark:bg-stone-900 py-3.5 px-3 text-center min-w-[100px] sm:min-w-[110px] border-b border-stone-200 dark:border-stone-800 shadow-2xs">
+                <div className="flex flex-col items-center">
+                  <span className="text-emerald-700 dark:text-emerald-400 font-bold">Textbook</span>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">বোর্ড বই</span>
+                </div>
+              </th>
 
-                {/* LiveMCQ PDF Column */}
-                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-3 text-center min-w-[120px] border-b border-stone-200 dark:border-stone-800">
-                  <div className="flex flex-col items-center">
-                    <span className="text-blue-700 dark:text-blue-400 font-bold">LiveMCQ PDF</span>
-                    <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">পিডিএফ শিট</span>
-                  </div>
-                </th>
+              {/* LiveMCQ PDF Column */}
+              <th className="sticky top-16 z-20 bg-stone-100 dark:bg-stone-900 py-3.5 px-3 text-center min-w-[110px] sm:min-w-[120px] border-b border-stone-200 dark:border-stone-800 shadow-2xs">
+                <div className="flex flex-col items-center">
+                  <span className="text-blue-700 dark:text-blue-400 font-bold">LiveMCQ PDF</span>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">পিডিএফ শিট</span>
+                </div>
+              </th>
 
-                {/* Q-Bank Column */}
-                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-3 text-center min-w-[110px] border-b border-stone-200 dark:border-stone-800">
-                  <div className="flex flex-col items-center">
-                    <span className="text-amber-700 dark:text-amber-400 font-bold">Q-Bank</span>
-                    <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">প্রশ্নব্যাংক</span>
-                  </div>
-                </th>
+              {/* Q-Bank Column */}
+              <th className="sticky top-16 z-20 bg-stone-100 dark:bg-stone-900 py-3.5 px-3 text-center min-w-[100px] sm:min-w-[110px] border-b border-stone-200 dark:border-stone-800 shadow-2xs">
+                <div className="flex flex-col items-center">
+                  <span className="text-amber-700 dark:text-amber-400 font-bold">Q-Bank</span>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">প্রশ্নব্যাংক</span>
+                </div>
+              </th>
 
-                {/* Others Column */}
-                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-3 text-center min-w-[100px] border-b border-stone-200 dark:border-stone-800">
-                  <div className="flex flex-col items-center">
-                    <span className="text-purple-700 dark:text-purple-400 font-bold">Others</span>
-                    <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">রিভিশন/অন্যান্য</span>
-                  </div>
-                </th>
+              {/* Others Column */}
+              <th className="sticky top-16 z-20 bg-stone-100 dark:bg-stone-900 py-3.5 px-3 text-center min-w-[90px] sm:min-w-[100px] border-b border-stone-200 dark:border-stone-800 shadow-2xs">
+                <div className="flex flex-col items-center">
+                  <span className="text-purple-700 dark:text-purple-400 font-bold">Others</span>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">রিভিশন/অন্যান্য</span>
+                </div>
+              </th>
 
-                {/* Row Delete Action */}
-                <th className="sticky top-16 z-20 bg-stone-100/95 dark:bg-stone-950/95 backdrop-blur-md py-3.5 px-2 text-center w-10 last:rounded-tr-2xl border-b border-stone-200 dark:border-stone-800"></th>
+              {/* Row Delete Action */}
+              <th className="sticky top-16 z-20 bg-stone-100 dark:bg-stone-900 py-3.5 px-2 text-center w-10 last:rounded-tr-2xl border-b border-stone-200 dark:border-stone-800 shadow-2xs"></th>
 
-              </tr>
-            </thead>
+            </tr>
+          </thead>
 
             {/* Table Body Rows */}
             <tbody className="divide-y divide-stone-100 dark:divide-stone-800 text-xs sm:text-sm">
@@ -1064,7 +1063,6 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
 
           </table>
         </div>
-      </div>
 
       {/* 5. CODE FORMAT / BULK TOPIC EDITOR MODAL */}
       {isCodeModalOpen && (
