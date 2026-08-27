@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { onAuthStateChanged, User, auth } from "./lib/firebase";
 import { 
   getDailyPlan, 
@@ -8,12 +8,18 @@ import {
   getUserStats,
   getWeeklyProgress,
   subscribeToUserPlans,
-  getLocal
+  getLocal,
+  getLocalUncompletedTasks,
+  saveUncompletedTask,
+  deleteUncompletedTask,
+  toggleUncompletedTaskStatus,
+  subscribeToUncompletedTasks
 } from "./lib/storage";
-import { calculatePlanPercentage } from "./lib/bcsSyllabus";
-import { DailyTablePlan } from "./types";
+import { calculatePlanPercentage, computeCellWeights } from "./lib/bcsSyllabus";
+import { DailyTablePlan, UncompletedTask, TableTopicItem } from "./types";
 import { Navbar } from "./components/Navbar";
 import { TableStudyTracker } from "./components/TableStudyTracker";
+import { UncompletedTasksModal } from "./components/UncompletedTasksModal";
 
 export default function App() {
   const getTodayStr = () => {
@@ -36,6 +42,10 @@ export default function App() {
   const [weeklyStats, setWeeklyStats] = useState(() => getWeeklyProgress(todayStr));
   const [isLiveSynced, setIsLiveSynced] = useState<boolean>(false);
 
+  // Uncompleted Tasks State & Modal
+  const [uncompletedTasks, setUncompletedTasks] = useState<UncompletedTask[]>(() => getLocalUncompletedTasks());
+  const [isUncompletedTasksModalOpen, setIsUncompletedTasksModalOpen] = useState<boolean>(false);
+
   const currentDateRef = useRef(currentDate);
   useEffect(() => {
     currentDateRef.current = currentDate;
@@ -54,6 +64,7 @@ export default function App() {
   // Auth Listener and Real-time Multi-Device Firestore Subscription
   useEffect(() => {
     let unsubscribeSnapshot: (() => void) | null = null;
+    let unsubscribeTasks: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -62,10 +73,14 @@ export default function App() {
         unsubscribeSnapshot();
         unsubscribeSnapshot = null;
       }
+      if (unsubscribeTasks) {
+        unsubscribeTasks();
+        unsubscribeTasks = null;
+      }
 
       if (currentUser) {
         setIsLiveSynced(true);
-        // Subscribe to real-time updates from Firestore across all devices
+        // Subscribe to real-time table plans updates from Firestore
         unsubscribeSnapshot = subscribeToUserPlans(currentUser.uid, (allPlans) => {
           const activeDate = currentDateRef.current;
           if (allPlans[activeDate]) {
@@ -74,6 +89,11 @@ export default function App() {
           setWeeklyStats(getWeeklyProgress(activeDate));
           const stats = getUserStats(activeDate);
           setStreakDays(stats.streakDays ?? 0);
+        });
+
+        // Subscribe to real-time uncompleted tasks updates
+        unsubscribeTasks = subscribeToUncompletedTasks(currentUser.uid, (remoteTasks) => {
+          setUncompletedTasks(remoteTasks);
         });
       } else {
         setIsLiveSynced(false);
@@ -86,6 +106,9 @@ export default function App() {
       unsubscribeAuth();
       if (unsubscribeSnapshot) {
         unsubscribeSnapshot();
+      }
+      if (unsubscribeTasks) {
+        unsubscribeTasks();
       }
     };
   }, []);
@@ -123,6 +146,69 @@ export default function App() {
     await handleUpdatePlan(day1);
   };
 
+  // Uncompleted Tasks handlers
+  const handleSaveTask = async (task: UncompletedTask) => {
+    await saveUncompletedTask(task);
+    setUncompletedTasks(getLocalUncompletedTasks());
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    await deleteUncompletedTask(taskId);
+    setUncompletedTasks(getLocalUncompletedTasks());
+  };
+
+  const handleToggleTask = async (taskId: string) => {
+    await toggleUncompletedTaskStatus(taskId);
+    setUncompletedTasks(getLocalUncompletedTasks());
+  };
+
+  // Transfer an uncompleted task directly into the current day's table plan
+  const handleAddTopicFromUncompletedTask = (topicName: string, subject?: string) => {
+    const displayTitle = subject ? `${subject}: ${topicName}` : topicName;
+    const newTopic: TableTopicItem = {
+      id: `topic_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      topic: displayTitle,
+      details: "ব্যাকলগ থেকে আজকের টেবিলে যুক্ত",
+      textbook: false,
+      livemcq: false,
+      qbank: false,
+      others: false,
+    };
+
+    const updatedTopics = computeCellWeights([...currentPlan.topics, newTopic]);
+    const calculatedPct = calculatePlanPercentage(updatedTopics);
+
+    handleUpdatePlan({
+      ...currentPlan,
+      topics: updatedTopics,
+      completionPercentage: calculatedPct,
+    });
+
+    setIsUncompletedTasksModalOpen(false);
+  };
+
+  // Calculate stats for uncompleted tasks (due today, overdue, total)
+  const { urgentTasksCount, pendingTasksCount } = useMemo(() => {
+    let urgent = 0;
+    let pending = 0;
+    uncompletedTasks.forEach((t) => {
+      if (!t.completed) {
+        pending++;
+        try {
+          const today = new Date(currentDate + "T00:00:00");
+          const target = new Date(t.deadlineDate + "T00:00:00");
+          const diff = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (diff <= 0) {
+            urgent++;
+          }
+        } catch {
+          // ignore date parse issue
+        }
+      }
+    });
+    return { urgentTasksCount: urgent, pendingTasksCount: pending };
+  }, [uncompletedTasks, currentDate]);
+
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 transition-colors duration-200 flex flex-col font-sans">
       
@@ -135,6 +221,9 @@ export default function App() {
         user={user}
         streakDays={streakDays}
         isLiveSynced={isLiveSynced}
+        uncompletedTasksCount={pendingTasksCount}
+        urgentTasksCount={urgentTasksCount}
+        onOpenUncompletedTasks={() => setIsUncompletedTasksModalOpen(true)}
       />
 
       {/* Main Single-View Table Tracker Content */}
@@ -146,8 +235,22 @@ export default function App() {
           onUpdatePlan={handleUpdatePlan}
           onResetToDay1={handleResetToDay1}
           onDateChange={setCurrentDate}
+          uncompletedTasks={uncompletedTasks}
+          onOpenUncompletedTasks={() => setIsUncompletedTasksModalOpen(true)}
         />
       </main>
+
+      {/* Uncompleted Tasks Modal & Backlog Manager */}
+      <UncompletedTasksModal
+        isOpen={isUncompletedTasksModalOpen}
+        onClose={() => setIsUncompletedTasksModalOpen(false)}
+        tasks={uncompletedTasks}
+        onSaveTask={handleSaveTask}
+        onDeleteTask={handleDeleteTask}
+        onToggleTask={handleToggleTask}
+        onAddTopicToTodayTable={handleAddTopicFromUncompletedTask}
+        currentDate={currentDate}
+      />
 
       {/* Minimal Footer */}
       <footer className="w-full border-t border-stone-200 dark:border-stone-800/80 bg-white/50 dark:bg-stone-900/50 py-3 text-center text-xs text-stone-500 dark:text-stone-400">
@@ -157,4 +260,5 @@ export default function App() {
     </div>
   );
 }
+
 

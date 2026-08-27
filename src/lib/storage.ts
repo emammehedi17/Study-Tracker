@@ -2,16 +2,18 @@ import {
   doc, 
   getDoc, 
   setDoc, 
+  deleteDoc,
   collection, 
   onSnapshot, 
   Unsubscribe 
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import { DailyTablePlan, TableTopicItem, UserStats } from "../types";
+import { DailyTablePlan, TableTopicItem, UserStats, UncompletedTask } from "../types";
 import { getInitialDay1Plan, computeCellWeights } from "./bcsSyllabus";
 
 const LOCAL_TABLE_PLANS_KEY = "bcs51_table_plans";
 const LOCAL_STATS_KEY = "bcs51_user_stats";
+const LOCAL_UNCOMPLETED_TASKS_KEY = "bcs51_uncompleted_tasks";
 
 // Helper to get local storage JSON
 export function getLocal<T>(key: string, fallback: T): T {
@@ -277,4 +279,111 @@ export function getUserStats(referenceDate?: string): UserStats {
     lastStudiedDate: todayStr,
   };
 }
+
+// ----------------------------------------------------
+// UNCOMPLETED TASKS MANAGEMENT & REAL-TIME SYNC
+// ----------------------------------------------------
+
+export function getLocalUncompletedTasks(): UncompletedTask[] {
+  return getLocal<UncompletedTask[]>(LOCAL_UNCOMPLETED_TASKS_KEY, []);
+}
+
+export async function saveUncompletedTask(task: UncompletedTask): Promise<void> {
+  const tasks = getLocalUncompletedTasks();
+  const existingIdx = tasks.findIndex((t) => t.id === task.id);
+  
+  const updatedTask: UncompletedTask = {
+    ...task,
+    updatedAt: new Date().toISOString(),
+  };
+
+  let newTasks: UncompletedTask[];
+  if (existingIdx >= 0) {
+    newTasks = [...tasks];
+    newTasks[existingIdx] = updatedTask;
+  } else {
+    newTasks = [updatedTask, ...tasks];
+  }
+
+  setLocal(LOCAL_UNCOMPLETED_TASKS_KEY, newTasks);
+
+  // Sync to Firestore if authenticated
+  const user = auth.currentUser;
+  if (user) {
+    try {
+      const taskDocRef = doc(db, "users", user.uid, "uncompletedTasks", task.id);
+      await setDoc(taskDocRef, updatedTask, { merge: true });
+    } catch (err) {
+      console.error("Firestore uncompleted task save failed:", err);
+    }
+  }
+}
+
+export async function deleteUncompletedTask(taskId: string): Promise<void> {
+  const tasks = getLocalUncompletedTasks();
+  const filtered = tasks.filter((t) => t.id !== taskId);
+  setLocal(LOCAL_UNCOMPLETED_TASKS_KEY, filtered);
+
+  const user = auth.currentUser;
+  if (user) {
+    try {
+      const taskDocRef = doc(db, "users", user.uid, "uncompletedTasks", taskId);
+      await deleteDoc(taskDocRef);
+    } catch (err) {
+      console.error("Firestore delete uncompleted task failed:", err);
+    }
+  }
+}
+
+export async function toggleUncompletedTaskStatus(taskId: string): Promise<void> {
+  const tasks = getLocalUncompletedTasks();
+  const task = tasks.find((t) => t.id === taskId);
+  if (!task) return;
+
+  const willBeCompleted = !task.completed;
+  const updatedTask: UncompletedTask = {
+    ...task,
+    completed: willBeCompleted,
+    completedAt: willBeCompleted ? new Date().toISOString() : undefined,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await saveUncompletedTask(updatedTask);
+}
+
+// Real-time Firestore sync for Uncompleted Tasks across devices
+export function subscribeToUncompletedTasks(
+  userId: string,
+  onUpdate: (tasks: UncompletedTask[]) => void
+): Unsubscribe {
+  const tasksCol = collection(db, "users", userId, "uncompletedTasks");
+
+  const unsubscribe = onSnapshot(
+    tasksCol,
+    (snapshot) => {
+      const remoteTasks: UncompletedTask[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as UncompletedTask;
+        if (data && data.id) {
+          remoteTasks.push(data);
+        }
+      });
+
+      // Sort by deadline ascending (soonest first), then priority
+      remoteTasks.sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        return a.deadlineDate.localeCompare(b.deadlineDate);
+      });
+
+      setLocal(LOCAL_UNCOMPLETED_TASKS_KEY, remoteTasks);
+      onUpdate(remoteTasks);
+    },
+    (error) => {
+      console.warn("Firestore uncompleted tasks subscription error:", error);
+    }
+  );
+
+  return unsubscribe;
+}
+
 

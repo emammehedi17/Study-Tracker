@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   Check, 
   Plus, 
@@ -17,9 +17,11 @@ import {
   AlertCircle,
   Undo2,
   Redo2,
-  X
+  X,
+  CheckSquare,
+  Flame
 } from "lucide-react";
-import { DailyTablePlan, TableTopicItem } from "../types";
+import { DailyTablePlan, TableTopicItem, UncompletedTask } from "../types";
 import { 
   toBengaliNumber, 
   computeCellWeights, 
@@ -42,6 +44,8 @@ interface TableStudyTrackerProps {
   onUpdatePlan: (updatedPlan: DailyTablePlan) => void;
   onResetToDay1: () => void;
   onDateChange: (date: string) => void;
+  uncompletedTasks?: UncompletedTask[];
+  onOpenUncompletedTasks?: () => void;
 }
 
 export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
@@ -51,6 +55,8 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
   onUpdatePlan,
   onResetToDay1,
   onDateChange,
+  uncompletedTasks = [],
+  onOpenUncompletedTasks,
 }) => {
   const [newTopicText, setNewTopicText] = useState("");
   const [newTopicDetails, setNewTopicDetails] = useState("");
@@ -378,9 +384,51 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
 
   const weightedTopics = computeCellWeights(plan.topics);
 
+  // Urgent uncompleted tasks calculation (due today or overdue)
+  const urgentTasks = useMemo(() => {
+    return uncompletedTasks.filter((t) => {
+      if (t.completed) return false;
+      try {
+        const today = new Date(currentDate + "T00:00:00");
+        const target = new Date(t.deadlineDate + "T00:00:00");
+        const diff = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return diff <= 0; // due today or overdue
+      } catch {
+        return false;
+      }
+    });
+  }, [uncompletedTasks, currentDate]);
+
+  const pendingTasksCount = uncompletedTasks.filter((t) => !t.completed).length;
+
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
       
+      {/* Urgent Uncompleted Tasks Alert Banner */}
+      {urgentTasks.length > 0 && onOpenUncompletedTasks && (
+        <div 
+          onClick={onOpenUncompletedTasks}
+          className="p-3 sm:p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 shadow-xs flex items-center justify-between gap-3 text-xs sm:text-sm text-rose-900 dark:text-rose-200 cursor-pointer hover:bg-rose-100/80 dark:hover:bg-rose-950/60 transition group animate-in fade-in duration-200"
+        >
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-3 w-3 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600"></span>
+            </span>
+            <div className="font-semibold">
+              <span className="font-bold text-rose-700 dark:text-rose-300">🔔 অসম্পূর্ণ টাস্কের ডেডলাইন আজ:</span>{' '}
+              আজ {toBengaliNumber(urgentTasks.length)} টি অসম্পূর্ণ বিষয়ের ডেডলাইন উপস্থিত! দ্রুত সম্পন্ন করুন।
+            </div>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 px-3 py-1.5 rounded-xl bg-rose-600 text-white font-bold text-xs group-hover:bg-rose-700 transition shadow-2xs"
+          >
+            টাস্ক লিস্ট দেখুন &rarr;
+          </button>
+        </div>
+      )}
+
       {/* 1. PROGRESS DASHBOARD: Daily & Weekly Progress Bars */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
         
@@ -558,6 +606,33 @@ export const TableStudyTracker: React.FC<TableStudyTrackerProps> = ({
             <Code className="w-3.5 h-3.5 text-emerald-400 dark:text-emerald-600" />
             <span>কোড এডিটর</span>
           </button>
+
+          {/* Uncompleted Tasks Action Button */}
+          {onOpenUncompletedTasks && (
+            <button
+              id="btn-action-uncompleted-tasks"
+              type="button"
+              onClick={onOpenUncompletedTasks}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
+                urgentTasks.length > 0
+                  ? "bg-rose-600 hover:bg-rose-700 text-white animate-pulse ring-2 ring-rose-400/50"
+                  : "bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700"
+              }`}
+              title="অসম্পূর্ণ টাস্ক ও ডেডলাইন ম্যানেজ করুন"
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span>অসম্পূর্ণ টাস্ক</span>
+              {pendingTasksCount > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold font-mono ${
+                  urgentTasks.length > 0 
+                    ? "bg-white text-rose-600" 
+                    : "bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300"
+                }`}>
+                  {toBengaliNumber(pendingTasksCount)}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Check All */}
           {plan.topics.length > 0 && (

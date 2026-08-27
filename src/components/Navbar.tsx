@@ -14,7 +14,9 @@ import {
   Copy,
   Check,
   X,
-  Cloud
+  Cloud,
+  CheckSquare,
+  Bell
 } from "lucide-react";
 import { User, signInWithPopup, auth, googleProvider, signOut } from "../lib/firebase";
 import { toBengaliNumber, formatBanglaDate } from "../lib/bcsSyllabus";
@@ -27,6 +29,9 @@ interface NavbarProps {
   user: User | null;
   streakDays: number;
   isLiveSynced?: boolean;
+  uncompletedTasksCount?: number;
+  urgentTasksCount?: number;
+  onOpenUncompletedTasks?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -37,6 +42,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   user,
   streakDays,
   isLiveSynced = false,
+  uncompletedTasksCount = 0,
+  urgentTasksCount = 0,
+  onOpenUncompletedTasks,
 }) => {
   const [showDomainHelpModal, setShowDomainHelpModal] = useState(false);
   const [copiedDomain, setCopiedDomain] = useState(false);
@@ -193,6 +201,43 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span>লাইভ সিঙ্ক</span>
                 </span>
               </div>
+            )}
+
+            {/* Uncompleted Task Button with blinking badge when urgent */}
+            {onOpenUncompletedTasks && (
+              <button
+                id="btn-nav-uncompleted-tasks"
+                type="button"
+                onClick={onOpenUncompletedTasks}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  urgentTasksCount > 0
+                    ? "bg-rose-50 dark:bg-rose-950/60 border border-rose-400 dark:border-rose-700 text-rose-700 dark:text-rose-300 ring-2 ring-rose-400/40 shadow-xs animate-pulse"
+                    : "bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700"
+                }`}
+                title={
+                  urgentTasksCount > 0
+                    ? `⚠️ ${toBengaliNumber(urgentTasksCount)} টি অসম্পূর্ণ টাস্কের ডেডলাইন আজ বা মেয়াদ শেষ!`
+                    : "অসম্পূর্ণ টাস্ক ও ব্যাকলগ দেখুন"
+                }
+              >
+                <div className="relative">
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  {urgentTasksCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-600 animate-ping"></span>
+                  )}
+                </div>
+                <span className="hidden sm:inline">অসম্পূর্ণ টাস্ক</span>
+                <span className="sm:hidden">বাকি</span>
+                {uncompletedTasksCount > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold font-mono ${
+                    urgentTasksCount > 0
+                      ? "bg-rose-600 text-white"
+                      : "bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300"
+                  }`}>
+                    {toBengaliNumber(uncompletedTasksCount)}
+                  </span>
+                )}
+              </button>
             )}
 
             {/* Streak */}

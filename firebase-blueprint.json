@@ -24,12 +24,34 @@
         "streakDays": { "type": "number" },
         "lastStudiedDate": { "type": "string" }
       }
+    },
+    "UncompletedTask": {
+      "title": "UncompletedTask",
+      "description": "Backlog uncompleted tasks with original day and deadline reminders",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "originalDate": { "type": "string" },
+        "deadlineDate": { "type": "string" },
+        "subject": { "type": "string" },
+        "priority": { "type": "string" },
+        "notes": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "completedAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "originalDate", "deadlineDate", "completed"]
     }
   },
   "firestore": {
     "/users/{userId}/tablePlans/{dateId}": {
       "schema": "DailyTablePlan",
       "description": "Daily study table plan for a specific date for an authenticated user"
+    },
+    "/users/{userId}/uncompletedTasks/{taskId}": {
+      "schema": "UncompletedTask",
+      "description": "Uncompleted backlog study tasks for an authenticated user"
     },
     "/users/{userId}/stats/{statsId}": {
       "schema": "UserStats",

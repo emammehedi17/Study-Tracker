@@ -14,6 +14,10 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
+      match /uncompletedTasks/{taskId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
       match /dailyPlans/{dateId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
